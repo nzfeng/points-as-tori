@@ -1,0 +1,12 @@
+[submodule "deps/nanobind"]
+	path = deps/nanobind
+	url = https://github.com/wjakob/nanobind.git
+[submodule "deps/libigl"]
+	path = deps/libigl
+	url = https://github.com/libigl/libigl.git
+[submodule "deps/fcpw"]
+	path = deps/fcpw
+	url = https://github.com/rohan-sawhney/fcpw.git
+[submodule "deps/nanoflann"]
+	path = deps/nanoflann
+	url = https://github.com/jlblancoc/nanoflann.git
