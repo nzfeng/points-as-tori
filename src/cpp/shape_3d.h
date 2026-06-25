@@ -34,11 +34,14 @@ inline double sign(double x) {
     return x >= 0.0 ? 1.0 : -1.0;
 } // force to pick a side
 
-std::pair<Eigen::Vector3d, Eigen::Vector3d> orthonormal_basis(const Eigen::Vector3d& n, double rotation = 0.);
-
 // ============================================================================
 // SAMPLING
 // ============================================================================
+
+std::pair<Eigen::Vector3d, Eigen::Vector3d> orthonormal_basis(const Eigen::Vector3d& n, double rotation = 0.);
+std::pair<Eigen::Vector3d, Eigen::Vector3d> orthonormal_basis_random(const Eigen::Vector3d& n, int seed);
+
+Eigen::Matrix<double, 3, Eigen::Dynamic> sample_sphere_positions(int n_samples, std::mt19937& rng);
 
 Eigen::Matrix<double, 3, Eigen::Dynamic> sample_bounding_box(int n_points, const Eigen::Vector3d& bbox_min,
                                                              const Eigen::Vector3d& bbox_max, int seed);

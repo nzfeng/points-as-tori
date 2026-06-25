@@ -233,17 +233,6 @@ class TorusDistanceField {
         return {neighbors, neighbors_subsampled};
     }
 
-    std::pair<Eigen::Matrix<double, 3, Eigen::Dynamic>, Eigen::Matrix<double, 3, Eigen::Dynamic>>
-    sample_distance_field_fps(int n_points, float isovalue, int seed) const;
-    std::pair<Eigen::Matrix<double, 3, Eigen::Dynamic>, Eigen::Matrix<double, 3, Eigen::Dynamic>>
-    sample_distance_field(int n_points, float isovalue, int seed) const;
-
-    Eigen::VectorXd compute_torus_errors(const Eigen::MatrixXi& neighbors,
-                                         const Eigen::Matrix<double, 3, Eigen::Dynamic>& centers,
-                                         const Eigen::Matrix<double, 2, Eigen::Dynamic>& axes,
-                                         const Eigen::VectorXd& major_radii, const Eigen::VectorXd& minor_radii) const;
-    Eigen::VectorXd compute_torus_SDF_errors(const Eigen::MatrixXi& neighbors, int n_queries, int seed) const;
-
     // batch queries
     Eigen::VectorXd evaluate_distance(const Eigen::Matrix<double, 3, Eigen::Dynamic>& queries,
                                       const double& isovalue = 0., bool parallelize = true) const;

@@ -50,7 +50,7 @@ pip install scipy numpy-stl matplotlib thingi10k py7zr pyvista trimesh pyfqmr no
 
 1. *Precomputation cost:* Though signed distance evaluation is fast, there is a non-neglible precomputation cost to fit tori to each new point cloud, since it involves forward passes of a neural network. The neural network has not been extensively engineered; I suspect that performance may be significantly improved with better choice or normalization of input features, fewer attention layers, or perhaps a different architecture entirely.
 
-Previously, I experimented with classic point set approaches for torus fitting that proved inadequate --- hence why I decided to use a small neural network. But it may still be possible to develop an effective non-neural approach to fitting tori that bypasses the need for a neural network entirely. Experimentation and suggestions welcome!
+    Previously, I experimented with classic point set approaches for torus fitting that proved inadequate --- hence why I decided to use a small neural network. But it may still be possible to develop an effective non-neural approach to fitting tori that bypasses the need for a neural network entirely. Experimentation and suggestions welcome!
 
 <!-- If used for optimization tasks, tori can perhaps be updated using simple gradient-based updates rather than forward passes of the neural network.  -->
 

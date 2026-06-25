@@ -233,149 +233,6 @@ TorusDistanceField::torus_signed_distances_gradients(const Eigen::Matrix<double,
     return {distances, gradients};
 }
 
-std::pair<Eigen::Matrix<double, 3, Eigen::Dynamic>, Eigen::Matrix<double, 3, Eigen::Dynamic>>
-TorusDistanceField::sample_distance_field_fps(int n_points, float isovalue, int seed) const {
-
-    std::pair<Eigen::Matrix<double, 3, Eigen::Dynamic>, Eigen::Matrix<double, 3, Eigen::Dynamic>> result =
-        sample_distance_field(n_points * 4, isovalue, seed);
-
-    // Subsample
-    Eigen::VectorXi indices = subsample_point_cloud(result.first, n_points);
-    Eigen::MatrixXd samples(3, n_points);
-    Eigen::MatrixXd normals(3, n_points);
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < n_points; i++) {
-        samples.col(i) = result.first.col(indices(i));
-        normals.col(i) = result.second.col(indices(i));
-    }
-    return {samples, normals};
-}
-
-std::pair<Eigen::Matrix<double, 3, Eigen::Dynamic>, Eigen::Matrix<double, 3, Eigen::Dynamic>>
-TorusDistanceField::sample_distance_field(int n_samples, float isovalue, int seed) const {
-
-    Eigen::Vector3d bbox_center = 0.5 * (bbox_min + bbox_max);
-    Eigen::Vector3d bbox_extent = 2 * (bbox_max - bbox_min);
-    double diam = bbox_extent.norm();
-
-    // Random generator
-    std::mt19937 rng(seed);
-    std::uniform_real_distribution<double> uniform_01(0.0, 1.0);
-
-    std::vector<Eigen::Vector3d> int_locations;
-
-    const double epsilon = 1e-6;
-    const int max_tries = n_samples * 10;
-    int attempt = 0;
-
-    while (int_locations.size() < static_cast<size_t>(n_samples) && attempt < max_tries) {
-        // Sample a direction uniformly on the sphere
-        double theta = 2.0 * M_PI * uniform_01(rng);
-        double cos_phi = 2.0 * uniform_01(rng) - 1.0;
-        double cos_theta = std::cos(theta);
-        double sin_theta = std::sin(theta);
-        double sin_phi = std::sqrt(1.0 - cos_phi * cos_phi);
-        Eigen::Vector3d ray_dir(cos_theta * sin_phi, sin_theta * sin_phi, cos_phi);
-
-        // Sample an offset uniformly from a disk perpendicular to ray_dir
-        double theta_disk = 2.0 * M_PI * uniform_01(rng);
-        double r = std::sqrt(uniform_01(rng));
-        auto [onb_u, onb_v] = orthonormal_basis(ray_dir);
-        Eigen::Vector3d ray_origin = bbox_center - ray_dir * 0.6 * diam +
-                                     r * diam * 0.5 * (std::cos(theta_disk) * onb_u + std::sin(theta_disk) * onb_v);
-
-        // Perform ray intersection
-
-        std::vector<Eigen::Vector3d> new_intersections = ray_intersection_single(ray_origin, ray_dir, diam, isovalue);
-        int_locations.insert(int_locations.end(), new_intersections.begin(), new_intersections.end());
-
-        attempt++;
-    }
-
-    // Handle case where we didn't get enough samples
-    int n_final = std::min(static_cast<int>(int_locations.size()), n_samples);
-
-    if (n_final == 0) {
-        // No intersections found - return empty matrices or throw an error
-        throw std::runtime_error("sample_distance_field: No ray intersections found. "
-                                 "Check that the isovalue is valid for this distance field.");
-    }
-
-    if (n_final < n_samples) {
-        // Duplicate samples to reach n_samples
-        for (int i = 0; i < n_samples - n_final; i++) {
-            int_locations.push_back(int_locations[i % n_final]);
-        }
-    }
-
-    // Prepare output matrices
-    Eigen::Matrix<double, 3, Eigen::Dynamic> sample_locations(3, n_samples);
-    Eigen::Matrix<double, 3, Eigen::Dynamic> sample_normals(3, n_samples);
-
-    for (int i = 0; i < n_samples; i++) {
-        Eigen::Vector3d p = int_locations[i];
-
-        sample_locations.col(i) = p;
-
-        // Compute gradient/normal
-        Eigen::Vector3d grad = evaluate_gradient_single(p);
-        double grad_norm = grad.norm();
-        if (grad_norm > 1e-10) {
-            sample_normals.col(i) = grad / grad_norm;
-        } else {
-            // Fallback: use approximate normal from nearest point or set to zero
-            sample_normals.col(i) = Eigen::Vector3d::Zero();
-        }
-    }
-
-    return {sample_locations, sample_normals};
-}
-
-
-Eigen::VectorXd TorusDistanceField::compute_torus_errors(const Eigen::MatrixXi& neighbors,
-                                                         const Eigen::Matrix<double, 3, Eigen::Dynamic>& centers,
-                                                         const Eigen::Matrix<double, 2, Eigen::Dynamic>& axes,
-                                                         const Eigen::VectorXd& major_radii,
-                                                         const Eigen::VectorXd& minor_radii) const {
-
-    Eigen::VectorXd errors(n_points);
-    int k_neighbors = neighbors.rows();
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < n_points; i++) {
-
-        std::vector<int> valid_indices;
-        for (int j = 0; j < k_neighbors; j++) {
-            int idx = neighbors(j, i);
-            if (idx >= 0) valid_indices.push_back(idx);
-        }
-        int n_valid_neighbors = valid_indices.size();
-        Eigen::VectorXi neighbor_indices(n_valid_neighbors);
-        Eigen::MatrixXd neighbor_points(3, n_valid_neighbors);
-        for (int j = 0; j < n_valid_neighbors; j++) {
-            int idx = valid_indices[j];
-            neighbor_indices(j) = idx;
-            neighbor_points.col(j) = points.col(idx);
-        }
-
-        std::pair<Eigen::VectorXd, Eigen::Matrix<double, 3, Eigen::Dynamic>> result = torus_signed_distances_gradients(
-            neighbor_points, centers.col(i), axes.col(i), major_radii(i), minor_radii(i));
-        const Eigen::VectorXd& distances = result.first;
-        const Eigen::Matrix<double, 3, Eigen::Dynamic>& gradients = result.second;
-
-        double distance_error = 0.0;
-        double normal_deviation = 0.0;
-
-        for (int j = 0; j < n_valid_neighbors; j++) {
-            distance_error += std::abs(distances(j));
-            Eigen::VectorXd grad_diff = gradients.col(j) - normals.col(neighbor_indices(j));
-            normal_deviation += grad_diff.norm();
-        }
-        distance_error /= n_valid_neighbors;
-        normal_deviation /= n_valid_neighbors;
-        errors(i) = distance_error + normal_deviation;
-    }
-    return errors;
-}
 
 //===== SINGLE QUERIES
 
@@ -1502,8 +1359,8 @@ Eigen::VectorXd TorusDistanceField::regularized_winding_number(const Eigen::Matr
 void bind_torus_distance(nb::module_& m) {
 
     nb::class_<TorusDistanceField>(m, "TorusDistanceField")
-        .def(nb::init<const Eigen::Matrix<double, 3, Eigen::Dynamic>&, const Eigen::Matrix<double, 3, Eigen::Dynamic>&,
-                      bool, bool>(),
+        .def(nb::init<const Eigen::Matrix<double, 3, Eigen::Dynamic>&,
+                      const Eigen::Matrix<double, 3, Eigen::Dynamic>&>(),
              "points"_a, "normals"_a, "Create an SDF parameterized by tori, from an input point cloud")
 
         // batch queries only in Python
@@ -1544,20 +1401,10 @@ void bind_torus_distance(nb::module_& m) {
              "Sample an isosurface")
 
         // applications
-        // .def("principal_curvatures", &TorusDistanceField::principal_curvatures, "neighbors"_a, "weights"_a,
-        //      "Compute principal curvature at each point")
         .def("principal_curvatures", &TorusDistanceField::principal_curvatures, "coefficients"_a,
              "Compute principal curvature at each point")
         .def("principal_directions", &TorusDistanceField::principal_directions, "coefficients"_a,
              "Compute principal curvatures and directions at each point")
-        // .def("gaussian_curvatures", &TorusDistanceField::gaussian_curvatures, "neighbors"_a, "weights"_a,
-        //      "Compute Gaussian curvature at each point")
-        // .def("mean_curvatures", &TorusDistanceField::mean_curvatures, "neighbors"_a, "weights"_a,
-        //      "Compute mean curvature at each point")
-        // .def("outliers", &TorusDistanceField::outliers, "neighbors"_a, "weights"_a, "threshold"_a,
-        //      "Return indices of outlier points")
-        .def("outliers", &TorusDistanceField::outliers, "neighbors"_a, "threshold"_a, "min_inlier_count"_a,
-             "Return indices of outlier points")
 
         // torus fitting
         .def("fit_tori_from_forms", &TorusDistanceField::fit_tori_from_forms, "coefficients"_a,
@@ -1569,10 +1416,6 @@ void bind_torus_distance(nb::module_& m) {
         .def("torus_signed_distances_gradients", &TorusDistanceField::torus_signed_distances_gradients, "queries"_a,
              "center"_a, "axis"_a, "major_radius"_a, "minor_radius"_a,
              "Evaluate signed distance and its gradient to single torus at multiple query points")
-        .def("compute_torus_errors", &TorusDistanceField::compute_torus_errors, "neighbors"_a, "centers"_a, "axes"_a,
-             "major_radii"_a, "minor_radii"_a, "Evaluate errors for hierarchical fitting")
-        .def("compute_torus_SDF_errors", &TorusDistanceField::compute_torus_SDF_errors, "neighbors"_a, "n_queries"_a,
-             "seed"_a, "Evaluate errors for hierarchical fitting")
 
         // other
         .def("get_points", &TorusDistanceField::get_points, "Get the original point positions")
@@ -1588,9 +1431,6 @@ void bind_torus_distance(nb::module_& m) {
         .def("set_lambda_scale", &TorusDistanceField::set_lambda_scale, "scale"_a,
              "Scale the (automatically-computed) parameter λ")
         .def("set_outliers", &TorusDistanceField::set_outliers, "indices"_a, "Mark outliers")
-
-        .def("sample_distance_field_fps", &TorusDistanceField::sample_distance_field_fps, "n_points"_a, "isovalue"_a,
-             "seed"_a, "Farthest-point sample a level set")
 
         .def("get_neighbors", &TorusDistanceField::get_neighbors, "k_neighbors"_a, "i"_a, "Get nearest neighbors")
         .def("get_neighbors", &TorusDistanceField::get_all_neighbors, "k_neighbors"_a, "Get nearest neighbors")

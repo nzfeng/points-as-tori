@@ -34,6 +34,45 @@ std::pair<Eigen::Vector3d, Eigen::Vector3d> orthonormal_basis(const Eigen::Vecto
     return {s, t};
 }
 
+std::pair<Eigen::Vector3d, Eigen::Vector3d> orthonormal_basis_random(const Eigen::Vector3d& n, int seed) {
+
+    std::mt19937 rng(seed);
+    std::normal_distribution dist{0.0, 1.0};
+
+    Eigen::Vector3d n_hat = n / n.norm();
+    Eigen::Vector3d s(dist(rng), dist(rng), dist(rng));
+    s -= s.dot(n_hat) * n_hat;
+    s /= s.norm();
+    Eigen::Vector3d t = n_hat.cross(s);
+
+    return {s, t};
+}
+
+// Generate evenly-spaced positions on sphere by Fibonacci sampling.
+// Add an arbitrary rotation of the points.
+Eigen::Matrix<double, 3, Eigen::Dynamic> sample_sphere_positions(int n_samples, std::mt19937& rng) {
+
+    Eigen::Matrix<double, 3, Eigen::Dynamic> positions(3, n_samples);
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    double golden_ratio = 0.5 * (std::sqrt(5) + 1.0);
+    for (int i = 0; i < n_samples; i++) {
+        double phi = std::acos(1. - 2.0 * i / n_samples);
+        double theta = 2.0 * i * M_PI / golden_ratio;
+        Eigen::Vector3d p(std::sin(phi) * std::cos(theta), std::sin(phi) * std::sin(theta), std::cos(phi));
+        positions.col(i) = p;
+    }
+
+    // Apply random rotation
+    double u1 = dist(rng);
+    double u2 = dist(rng);
+    double u3 = dist(rng);
+    Eigen::Quaterniond q(std::sqrt(1 - u1) * std::sin(2 * M_PI * u2), std::sqrt(1 - u1) * std::cos(2 * M_PI * u2),
+                         std::sqrt(u1) * std::sin(2 * M_PI * u3), std::sqrt(u1) * std::cos(2 * M_PI * u3));
+    positions = q.toRotationMatrix() * positions;
+
+    return positions;
+}
+
 // ============================================================================
 // SAMPLING
 // ============================================================================

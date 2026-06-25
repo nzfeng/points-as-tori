@@ -78,13 +78,13 @@ target_include_directories(pat_bindings PRIVATE
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(pat_bindings PRIVATE
-        nanoflann::nanoflann fcpw igl::core OpenMP::OpenMP_CXX)
+        nanoflann::nanoflann fcpw igl::core igl_copyleft::cgal OpenMP::OpenMP_CXX)
     target_compile_options(pat_bindings PRIVATE ${OpenMP_CXX_FLAGS})
     if(OpenMP_INCLUDE_DIR)
         target_include_directories(pat_bindings PRIVATE ${OpenMP_INCLUDE_DIR})
     endif()
 else()
-    target_link_libraries(pat_bindings PRIVATE nanoflann::nanoflann fcpw igl::core)
+    target_link_libraries(pat_bindings PRIVATE nanoflann::nanoflann fcpw igl::core igl_copyleft::cgal)
 endif()
 
 install(TARGETS pat_bindings LIBRARY DESTINATION .)
