@@ -61,6 +61,7 @@ class PointCloud3D:
 	@staticmethod
 	def read_PLY(filepath: str) -> PointCloud3D:
 		import open3d as o3d
+
 		pcd = o3d.io.read_point_cloud(filepath)
 		points = np.asarray(pcd.points)
 		colors = np.asarray(pcd.colors)
@@ -82,6 +83,7 @@ def write_point_cloud(points: np.ndarray, normals: np.ndarray, filepath: str) ->
 # ========================================================================
 # MESHES
 # ========================================================================
+
 
 class TriangleMesh:
 	def __init__(self, vertices: np.ndarray, faces: np.ndarray) -> None:
@@ -293,7 +295,7 @@ def get_neighbors(points: np.ndarray, k_neighbors: int, outliers: np.ndarray = n
 def compute_optimal_radius(points, k_neighbors=64):
 	D = utilsb.get_average_neighbor_distance(np.asfortranarray(points.T), k_neighbors)
 	lam = 1e3 / D
-	return 128. / lam
+	return 128.0 / lam
 
 
 def fit_tori_from_forms(
@@ -311,9 +313,7 @@ def fit_tori_from_forms(
 
 class TorusDistanceField:
 	def __init__(self, points: np.ndarray, normals: np.ndarray):
-		self.bound_object = utilsb.TorusDistanceField(
-			np.asfortranarray(points.T), np.asfortranarray(normals.T)
-		)
+		self.bound_object = utilsb.TorusDistanceField(np.asfortranarray(points.T), np.asfortranarray(normals.T))
 
 	def get_neighbors(self, k_neighbors: int, i: int):
 		return self.bound_object.get_neighbors(k_neighbors, i)

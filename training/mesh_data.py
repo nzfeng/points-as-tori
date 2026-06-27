@@ -51,12 +51,13 @@ max_points_per_pointcloud = max_faces_per_mesh  # maximum-sized point cloud
 meshes_per_training_npz = 500  # number of shapes to include in each saved NPZ file encoding training features
 n_inspect = 7  # number of meshes, point clouds to save per dataset to manually inspect
 
-N_POINTS_SCALING = [512 *(4**k) for k in range(1,7)]
+N_POINTS_SCALING = [512 * (4**k) for k in range(1, 7)]
 
 
 # ========================================================================
 # GET THE DATA
 # ========================================================================
+
 
 def save_mesh_dataset(meshes: List[Dict], filepath: str, metadata: Dict = None):
 	"""
@@ -856,9 +857,11 @@ def get_ABC(load_dir: str, save_dir: str, train_test_split: float):
 		except Exception as e:
 			print(f'  Error processing archive {chunk_name}: {e}')
 
+
 # ========================================================================
 # GENERATE DATASETS
 # ========================================================================
+
 
 def pad_mesh(vertices, faces, max_vertices=None, max_faces=None):
 	"""
@@ -973,7 +976,16 @@ def generate_input_features_with_meshes(all_data, max_points):
 	all_mesh_faces = np.stack([d['faces'] for d in all_padded_data])
 	all_face_masks = np.stack([d['face_mask'] for d in all_padded_data])
 
-	return (all_positions, all_normals, all_areas, all_neighbors, all_masks, all_mesh_vertices, all_mesh_faces, all_face_masks)
+	return (
+		all_positions,
+		all_normals,
+		all_areas,
+		all_neighbors,
+		all_masks,
+		all_mesh_vertices,
+		all_mesh_faces,
+		all_face_masks,
+	)
 
 
 def save_mesh_training_data(
@@ -1057,7 +1069,16 @@ def load_mesh_training_data(filepath):
 	print(f'  Max vertices: {all_mesh_vertices.shape[1]}')
 	print(f'  Max faces: {all_mesh_faces.shape[1]}')
 
-	return (all_positions, all_normals, all_areas, all_neighbors, all_masks, all_mesh_vertices, all_mesh_faces, all_face_masks)
+	return (
+		all_positions,
+		all_normals,
+		all_areas,
+		all_neighbors,
+		all_masks,
+		all_mesh_vertices,
+		all_mesh_faces,
+		all_face_masks,
+	)
 
 
 def generate_scanned_mesh_training_dataset(
@@ -1399,6 +1420,7 @@ def generate_all_training_datasets(n_views: int, mode: int):
 		t1 = time.time()
 		print(f'Blob processing time: {t1 - t0}s')
 
+
 def generate_pretraining_dataset():
 	"""
 	Generate a training dataset of just a single, smooth blobby shape.
@@ -1499,7 +1521,6 @@ def generate_validation_datasets():
 
 
 if __name__ == '__main__':
-
 	# Generate blobby training data
 	generate_blob_dataset(
 		n_blobs=3000,
@@ -1520,5 +1541,3 @@ if __name__ == '__main__':
 
 	generate_all_training_datasets(n_views=4, mode=0)
 	generate_all_training_datasets(n_views=4, mode=-1)
-
-	

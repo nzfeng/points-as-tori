@@ -233,7 +233,7 @@ def torus_precompute_masked(
 		v2 = a11 * (a10**2 + 1.0) - 2.0 * a01 * a10 * a20
 		term = a02 * (a10**2 + 1.0) - a01 * a10 * a11 + a20 * (a01**2 + 1.0)
 		discriminant = (1.0 + a01**2 + a10**2) * (a11**2 - 4.0 * a02 * a20) + term**2
-		discriminant = jnp.sqrt(jnp.maximum(discriminant, NAN_EPSILON)) # sqrt not differentiable at 0
+		discriminant = jnp.sqrt(jnp.maximum(discriminant, NAN_EPSILON))  # sqrt not differentiable at 0
 
 		ev_pos_0 = v1 + discriminant
 		ev_pos_0 = jnp.sign(ev_pos_0) * jnp.maximum(jnp.abs(ev_pos_0), NAN_EPSILON)
@@ -546,7 +546,7 @@ def generate_torus_mesh(center: np.ndarray, axis: np.ndarray, major_radius: floa
 	# major_res: number of segments around major circle
 	# minor_res: number of segments around minor circle
 	max_spacing = 0.1
-	min_res = 16 # for small point clouds (a few thousand points), use 16
+	min_res = 16  # for small point clouds (a few thousand points), use 16
 	max_res = 128
 	major_res = min(max(int(major_radius / max_spacing), min_res), max_res)
 	minor_res = min(max(int(minor_radius / max_spacing), min_res), max_res)
@@ -702,7 +702,7 @@ def export_tori(centers: np.ndarray, axes: np.ndarray, major_radii: float, minor
 			continue
 
 		# Generate mesh for this torus
-		print(f"Generating torus mesh {i}...")
+		print(f'Generating torus mesh {i}...')
 		vertices, faces = generate_torus_mesh(centers[i], axes[i], major_radii[i], minor_radii[i])
 
 		if len(vertices) == 0:
@@ -721,7 +721,7 @@ def export_tori(centers: np.ndarray, axes: np.ndarray, major_radii: float, minor
 		n_valid += 1
 
 	# Combine all meshes
-	print("Combining all torus mehses...")
+	print('Combining all torus mehses...')
 	if len(all_vertices) > 0:
 		all_vertices = np.vstack(all_vertices)
 		all_faces = np.vstack(all_faces)
@@ -732,6 +732,7 @@ def export_tori(centers: np.ndarray, axes: np.ndarray, major_radii: float, minor
 		print(f'Warning: No valid torii found, empty mesh exported to {save_filepath}')
 		with open(save_filepath, 'w') as f:
 			f.write('# Empty mesh (no valid torii)\n')
+
 
 def _export_tori_single(
 	centers: np.ndarray,
@@ -744,7 +745,7 @@ def _export_tori_single(
 ) -> int:
 	"""
 	Export a collection of torii to a single file.
-	
+
 	Args:
 		centers: (n_torii, 3)
 		axes: (n_torii, 2)
@@ -753,18 +754,18 @@ def _export_tori_single(
 		save_filepath: output filepath
 		global_index_offset: offset for global indexing (for consistent colors across chunks)
 		verbose: print progress
-	
+
 	Returns:
 		Number of valid torii exported
 	"""
 	n_torii = len(centers)
-	
+
 	all_vertices = []
 	all_faces = []
 	all_colors = []
 	vertex_offset = 0
 	n_valid = 0
-	
+
 	for i in range(n_torii):
 		# Check if torus is valid
 		is_valid = (
@@ -775,29 +776,29 @@ def _export_tori_single(
 			and np.abs(minor_radii[i]) > 1e-10
 			and np.abs(major_radii[i]) > 1e-10
 		)
-		
+
 		if not is_valid:
 			continue
-		
+
 		# Generate mesh for this torus
 		vertices, faces = generate_torus_mesh(centers[i], axes[i], major_radii[i], minor_radii[i])
-		
+
 		if len(vertices) == 0:
 			continue
-		
+
 		# Compute color using global index for consistency across chunks
 		global_index = global_index_offset + i
 		color = torus_color(global_index)
 		vertex_colors = np.tile(color, (len(vertices), 1))
-		
+
 		# Add to combined mesh with offset
 		all_vertices.append(vertices)
 		all_faces.append(faces + vertex_offset)
 		all_colors.append(vertex_colors)
-		
+
 		vertex_offset += len(vertices)
 		n_valid += 1
-	
+
 	# Combine and export
 	if len(all_vertices) > 0:
 		all_vertices = np.vstack(all_vertices)
@@ -809,10 +810,10 @@ def _export_tori_single(
 	else:
 		if verbose:
 			print(f'Warning: No valid torii found, skipping {save_filepath}')
-	
+
 	return n_valid
 
-	
+
 def export_tori_chunked(
 	centers: np.ndarray,
 	axes: np.ndarray,
@@ -824,7 +825,7 @@ def export_tori_chunked(
 ) -> List[str]:
 	"""
 	Export a collection of torii in chunks, with each chunk saved to a separate file.
-	
+
 	Args:
 		centers: (n_torii, 3) torus centers
 		axes: (n_torii, 2) torus axes in spherical coordinates
@@ -834,61 +835,60 @@ def export_tori_chunked(
 					   chunks will be saved as "output/torii_chunk0.ply", etc.
 		chunk_size: number of torii per chunk (default 1M)
 		verbose: print progress information
-	
+
 	Returns:
 		List of output filepaths that were created
 	"""
 	n_torii = len(centers)
-	print(f"# torii: {n_torii}")
-	
+	print(f'# torii: {n_torii}')
+
 	# Parse base filepath
 	if save_filepath.endswith('.ply'):
 		base_path = save_filepath[:-4]
 	else:
 		base_path = save_filepath
-	
+
 	# # If small enough, export in one file
 	# if n_torii <= chunk_size:
 	# 	output_files = []
 	# 	filepath = f"{base_path}.ply"
 	# 	n_valid = _export_tori_single(
-	# 		centers, axes, major_radii, minor_radii, 
+	# 		centers, axes, major_radii, minor_radii,
 	# 		filepath, global_index_offset=0, verbose=verbose
 	# 	)
 	# 	if n_valid > 0:
 	# 		output_files.append(filepath)
 	# 	return output_files
-	
+
 	# Process in chunks
 	n_chunks = (n_torii + chunk_size - 1) // chunk_size
-	
+
 	if verbose:
 		print(f'Exporting {n_torii:,} torii in {n_chunks} chunks of up to {chunk_size:,} each...')
-	
+
 	output_files = []
 	total_valid = 0
-	
+
 	for chunk_idx in range(n_chunks):
 		start = chunk_idx * chunk_size
 		end = min(start + chunk_size, n_torii)
-		
+
 		if verbose:
 			progress = (chunk_idx + 1) / n_chunks * 100
-			print(f'  Chunk {chunk_idx}/{n_chunks-1} (torii {start:,}-{end-1:,}, {progress:.1f}%)...')
-		
+			print(f'  Chunk {chunk_idx}/{n_chunks - 1} (torii {start:,}-{end - 1:,}, {progress:.1f}%)...')
+
 		# Extract chunk data
 		centers_chunk = centers[start:end]
 		axes_chunk = axes[start:end]
 		major_chunk = major_radii[start:end]
 		minor_chunk = minor_radii[start:end]
-		
+
 		# Export chunk with global index offset for consistent coloring
-		filepath = f"{base_path}_chunk{chunk_idx}.ply"
+		filepath = f'{base_path}_chunk{chunk_idx}.ply'
 		n_valid = _export_tori_single(
-			centers_chunk, axes_chunk, major_chunk, minor_chunk,
-			filepath, global_index_offset=start, verbose=False
+			centers_chunk, axes_chunk, major_chunk, minor_chunk, filepath, global_index_offset=start, verbose=False
 		)
-		
+
 		if n_valid > 0:
 			output_files.append(filepath)
 			total_valid += n_valid
@@ -897,15 +897,16 @@ def export_tori_chunked(
 		else:
 			if verbose:
 				print(f'	No valid torii in chunk {chunk_idx}, skipping file creation')
-		
+
 		# Free memory
 		del centers_chunk, axes_chunk, major_chunk, minor_chunk
 		gc.collect()
-	
+
 	if verbose:
 		print(f'  Done. Exported {total_valid:,}/{n_torii:,} valid torii to {len(output_files)} files.')
-	
+
 	return output_files
+
 
 # ========================================================================
 # NEURAL NETWORK ARCHITECTURE
@@ -1025,9 +1026,7 @@ class InputFeatures(nnx.Module):
 		# [local coordinates (3), normals in local coordinates (3)]
 		geometric_features = jnp.concatenate([coordinates, local_normals], axis=-1)  # [batch, k, input_dim]
 
-		return self.mlp(
-			geometric_features
-		), median
+		return self.mlp(geometric_features), median
 
 
 class FundamentalFormPredictor(nnx.Module):
@@ -1402,7 +1401,6 @@ def FundamentalFormPredictorTrainer(
 		"""
 
 		def loss_fn(model):
-
 			coefficients = model(positions[neighbors], normals[neighbors])
 
 			loss, loss_dict = SDF_loss(mask, batch_mask, positions, normals, coefficients, queries, true_distances)
@@ -1542,7 +1540,7 @@ def TrainFundamentalFormPredictor(
 
 	# Load validation data
 	val_data_filename = 'datasets/ABC17_validation_3.npz'
-	#val_data_filename = 'datasets/ABC_components/ABC17_validation_0.npz'
+	# val_data_filename = 'datasets/ABC_components/ABC17_validation_0.npz'
 	val_positions = None
 	val_normals = None
 	val_neighbors = None
@@ -1865,7 +1863,6 @@ def TrainFundamentalFormPredictor(
 
 
 if __name__ == '__main__':
-
 	dataset_dir = 'datasets/nice'
 
 	# Pretraining

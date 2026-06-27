@@ -509,7 +509,7 @@ TorusDistanceField::evaluate_distance_gradient_laplacian(const Eigen::Matrix<dou
             laplacians(q_idx) = std::get<2>(result);
         }
     } else {
-        // k-NN based evaluation (original behavior)
+        // k-NN based evaluation
         Eigen::MatrixXi neighbors = compute_nearest_points(queries, k_evaluation);
         Eigen::VectorXd shifts = compute_shifts(queries, neighbors);
 
@@ -1062,8 +1062,8 @@ Eigen::VectorXd TorusDistanceField::signed_log_sum_exp(const Eigen::Matrix<doubl
 double TorusDistanceField::log_sum_exp_single(const Eigen::Vector3d& q) const {
 
     double w = 0.;
-    // use Madan & Levin's heuristic of setting alpha = 100 / length of bounding box diagonal.
-    // double alpha = 100. / (bbox_max - bbox_min).norm();
+    // use Madan & Levin's heuristic of setting α = 100 / length of bounding box diagonal.
+    // double lam = 100. / (bbox_max - bbox_min).norm();
     double lam = lambda_scale;
     double shift = 64. / lam;
 
@@ -1071,8 +1071,7 @@ double TorusDistanceField::log_sum_exp_single(const Eigen::Vector3d& q) const {
         Eigen::Vector3d p_i = points.col(i);
         Eigen::Vector3d r_vec = q - p_i;
         double r = r_vec.norm();
-        // w += std::exp(-lam * (r - shift));
-        w += areas(i) * std::exp(-lam * r); // try additionally weighting by point area weight
+        w += std::exp(-lam * (r - shift));
     }
     return (-std::log(std::abs(w)) / lam) + shift;
 }
@@ -1320,7 +1319,7 @@ Eigen::VectorXd TorusDistanceField::fast_winding_number(const Eigen::Matrix<doub
 
 double TorusDistanceField::regularized_winding_number_single(const Eigen::Vector3d& q, const double& epsilon) const {
 
-    // Must have called fast_winding_number_precompute()
+    // Must have first called fast_winding_number_precompute()
 
     double u = 0.0;
     for (int i = 0; i < n_points; i++) {
@@ -1338,7 +1337,7 @@ double TorusDistanceField::regularized_winding_number_single(const Eigen::Vector
 
 Eigen::VectorXd TorusDistanceField::regularized_winding_number(const Eigen::Matrix<double, 3, Eigen::Dynamic>& queries,
                                                                const double& epsilon, bool parallelize) const {
-    // Must have called fast_winding_number_precompute()
+    // Must have first called fast_winding_number_precompute()
 
     int n_queries = queries.cols();
     Eigen::VectorXd values(n_queries);

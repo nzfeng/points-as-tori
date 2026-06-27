@@ -5,5 +5,4 @@ from pointsastori.network import *
 from mesh_sampling_jax import *
 
 if __name__ == '__main__':
-	
 	train()

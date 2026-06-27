@@ -13,6 +13,7 @@ from mesh_data import *
 
 EPS = 1e-10
 
+
 @jit
 def closest_point_on_triangle(
 	query: jax.Array,  # (3,) or (..., 3)
@@ -606,6 +607,7 @@ def generate_queries_for_neighborhood(
 
 	return queries
 
+
 @partial(jit, static_argnames=['n_queries', 'use_unsigned_distance'])
 def generate_shape_features(
 	positions: jax.Array,  # (n_points, 3)
@@ -679,5 +681,3 @@ def generate_shape_features(
 	distances = jax.vmap(compute_distances_for_point)(queries)  # (n_points, n_queries)
 
 	return queries, distances
-
-
