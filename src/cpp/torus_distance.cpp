@@ -1243,20 +1243,18 @@ Eigen::VectorXd TorusDistanceField::winding_number(const Eigen::Matrix<double, 3
     return values;
 }
 
-Eigen::VectorXd TorusDistanceField::compute_point_areas() {
+void TorusDistanceField::compute_point_areas() {
     Eigen::MatrixXd P = points.transpose();
     Eigen::MatrixXd N = normals.transpose();
     igl::octree(P, point_indices, octree_CH, octree_CN, octree_W);
 
-    Eigen::VectorXd A;
     {
         int k = 20; // Number of neighbors (typically 10-30)
         Eigen::MatrixXi I;
         igl::knn(P, k, point_indices, octree_CH, octree_CN, octree_W, I);
 
-        igl::copyleft::cgal::point_areas(points.transpose(), I, N, A);
+        igl::copyleft::cgal::point_areas(points.transpose(), I, N, areas);
     }
-    return A;
 }
 
 void TorusDistanceField::fast_winding_number_precompute() {

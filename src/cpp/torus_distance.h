@@ -324,7 +324,10 @@ class TorusDistanceField {
         lambda_scale = scale;
     }
 
-    Eigen::VectorXd get_point_areas() const {
+    Eigen::VectorXd get_point_areas() {
+        if (areas.size() == 0) {
+            compute_point_areas();
+        }
         return areas;
     }
 
@@ -364,7 +367,7 @@ class TorusDistanceField {
 
 
     // libigl fast winding number stuff
-    Eigen::VectorXd compute_point_areas();
+    void compute_point_areas();
     std::vector<std::vector<int>> point_indices;        // Point indices for each octree cell
     Eigen::Matrix<int, Eigen::Dynamic, 8> octree_CH;    // #octree_cells x 8 children indices
     Eigen::Matrix<double, Eigen::Dynamic, 3> octree_CN; // #octree_cells x 3 cell centers

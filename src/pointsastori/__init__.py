@@ -15,7 +15,7 @@ Quickstart::
 """
 
 from .network import FundamentalFormPredictor
-from .infer import PointCloudSDF, read_point_cloud
+from .infer import PointsAsTori, read_point_cloud
 from .shape_3d import (
 	PointCloud3D,
 	write_point_cloud,

@@ -1,8 +1,8 @@
 # Points as Tori
 
-Evaluation and training code for "[Points as Tori: Fast Pointwise Signed Distance for Point Clouds](https://nzfeng.github.io/research/SignedHeatMethod/index.html)" by [Nicole Feng](https://nzfeng.github.io/index.html), [Ioannis Gkioulekas](https://www.cs.cmu.edu/~igkioule/), [Keenan Crane](https://www.cs.cmu.edu/~kmcrane/), presented at SIGGRAPH 2026.
+This repo implements _Points as Tori (PAT)_ for estimating signed distance from oriented point clouds. PAT computes signed distance directly from point clouds, and allows fast pointwise evaluation of signed distance at arbitrary spatial resolution --- without requiring discretization, global optimization, or explicit reconstruction.
 
-This repo implements _Points as Tori (PAT)_ for estimating signed distance from oriented point clouds. 
+PAT was introduced in the SIGGRAPH 2026 paper "[Points as Tori: Fast Pointwise Signed Distance for Point Clouds](https://nzfeng.github.io/research/SignedHeatMethod/index.html)" by [Nicole Feng](https://nzfeng.github.io/index.html), [Ioannis Gkioulekas](https://www.cs.cmu.edu/~igkioule/), [Keenan Crane](https://www.cs.cmu.edu/~kmcrane/).
 
 ![teaser image](media/Teaser.png)
 
@@ -14,31 +14,109 @@ Have a feature or improvement in mind that you'd like to see? Parts of the repos
 
 ## Usage for signed distance
 
-**TODO: install Python package; usage and demo code**
-
 If building this project from source, it is likely that you may have to first initialize git submodules after cloning the repository, using 
 
 ```
 git submodule update --init --recursive
 ```
 
-## Demo
+This project relies on C++ extensions. Build the Python package using 
 
-**TODO: browser-based demo**
+```
+pip install .
+```
 
-**TODO: high-level API, k-nearest neighbors acceleration**
+at the top level of the repo. Releasing a Python package that one can pip-install from PyPI is a TODO.
+
+
+The API is implemented in `infer.py`. Usage:
+
+```
+pat = PointsAsTori(points, normals) # optional argument for tori
+
+# `queries` is a (n_queries, 3) NumPy array containing query positions
+distances = pat.signed_distance(queries)   # returns a (n_queries, ) NumPy array
+gradients = pat.sdf_gradient(queries)      # returns a (n_queries, 3) NumPy array
+```
+
+In more detail: for a given point cloud, tori are first fit to the point cloud using a small pre-trained neural network (included in the repo); tori data needs to be precomputed only once per point cloud, and is stored in the `PointsAsTori` as object. Optionally, a `PointsAsTori` object can be initialized with existing pre-computed tori (for example, from a binary file generated using e.g. `demo/precompute.py`).
+
+To give an idea of precomputation time: Using an NVIDIA RTX 3090, precomputation takes <10 seconds for 100k points, <60s for 1M points, 1-4 minutes for 5-10M points, and >10 minutes for 20M+ points (time scales linearly with point cloud size). A Macbook Pro laptop with an M3 Max chip, 16-core CPU, and 64 GB of RAM, takes about a minute for 50k points, eight minutes for 1M points.
+
+## Demo & shader visualization
+
+**TODO: demo/visualization**
+
+First follow the set up instructions in the [above section](#usage-for-signed-distance)
+
+For now, I've included a shader visualization that uses `pyglet` and `pyimgui`. They are sort of a pain to set up, and developing an easier-to-use browser-based shader is a TODO.
+
+The demo requires additional dependencies that require a version of Python between 3.9 - 3.11. You can do this easily by setting up a virtual environment. You can create a new existing Python virtual environment using `venv` (using Python version 3.11 here as an example) with
+```
+python3.11 -m venv [venv name]
+```
+and activate an existing Python virtual environment using
+```
+source [venv name]/bin/activate
+```
+To deactivate an activated Python virtual environment, use
+```
+deactivate
+```
+And to delete a Python virtual environment, use
+```
+rm -r [venv name]
+```
+
+Alternatively, you can use `pyenv`:
+```
+pyenv install 3.11
+```
+To create a virtual environment using pyenv,
+```
+pyenv virtualenv 3.11 [venv name]
+```
+To activate:
+```
+pyenv activate [venv name]
+```
+To deactivate:
+```
+pyenv deactivate
+```
+To delete:
+```
+pyenv uninstall [venv name]
+```
+
+The demo requires additional dependencies that can be pip-installed as follows:
+
+```
+pip install pyglet "imgui[pyglet] pyvista"
+```
+
+Run the demo from the `/demo` directory using 
+
+```
+python demo_3d.py
+```
+
+GUI interactions:
+* mouse scroll: zoom in/out
+* mouse click-and-drag: pan
+* left-right mouse motion: move cutplane along axis
+* tab: switch axis of cutplane
+* spacebar: freeze the cutplane at its current location
 
 ## Dependencies
 
-Python bindings are implemented using [`nanobind`](https://github.com/wjakob/nanobind). [`nanoflann`](https://github.com/jlblancoc/nanoflann) is used to build KD-trees to accelerate signed distance queries. The C++ functions use OpenMP for parallelization. All dependencies should be installed automatically upon install of the Python package.
+Python bindings are implemented using [`nanobind`](https://github.com/wjakob/nanobind). [`nanoflann`](https://github.com/jlblancoc/nanoflann) is used to build KD-trees to accelerate signed distance queries. The C++ functions use OpenMP for parallelization. All dependencies are included as submodules.
 
-This project also contains submodule dependences on [`libigl`](https://libigl.github.io/) and [`fcpw`](https://github.com/rohan-sawhney/fcpw) for their routines for winding numbers and exact distance, respectively (these may be interesting to users for comparison).
+This project additionally contains submodule dependences on [`libigl`](https://libigl.github.io/) and [`fcpw`](https://github.com/rohan-sawhney/fcpw) for their routines for winding numbers and exact distance, respectively. These are not strictly required, but they may be interesting to users as a point of comparison.
 
 ## Training
 
-**TODO: download training data**
-
-The `training/` directory contains scripts for training the neural network component and generating training data, both from scratch. Pre-generated training data can be found at [TODO]() (total size TODO GB).
+The `training/` directory contains scripts for training the neural network component and generating training data. Pre-generated training data can be found at [this Google drive directory](https://drive.google.com/drive/folders/1hnG-1OCwZ0SWS47Kgmk4chPG825AOfGt?usp=sharing) (total size 6.1 GB).
 
 The training scripts use additional Python packages, which can be pip-installed:
 
@@ -48,13 +126,23 @@ pip install scipy numpy-stl matplotlib thingi10k py7zr pyvista trimesh pyfqmr no
 
 ## Areas of improvement
 
-1. *Precomputation cost:* Though signed distance evaluation is fast, there is a non-neglible precomputation cost to fit tori to each new point cloud, since it involves forward passes of a neural network. The neural network has not been extensively engineered; I suspect that performance may be significantly improved with better choice or normalization of input features, fewer attention layers, or perhaps a different architecture entirely.
+Areas of improvement mostly center around neural network performance and robustness.
+
+1. *Precomputation cost:* On the one hand, training/inference of our neural network is at least an order of magnitude faster than many end-to-end neural methods (e.g. neural field fitting), and each signed distance query takes 10^{-4} - 10^{-3} seconds. Still, the precomputation cost of fitting tori to a new point cloud is not yet "instant"; using an NVIDIA RTX 3090, precomputation takes <10 seconds for 100k points, <60s for 1M points, 1-4 minutes for 5-10M points, and >10 minutes for 20M+ points (time scales linearly with point cloud size). (A Macbook Pro laptop with an M3 Max chip, 16-core CPU, and 64 GB of RAM, takes about a minute for 50k points, eight minutes for 1M points.)
+
+    The neural network has not been extensively engineered; I suspect that performance may be significantly improved with better choice or normalization of input features, fewer attention layers, or perhaps a different architecture entirely.
 
     Previously, I experimented with classic point set approaches for torus fitting that proved inadequate --- hence why I decided to use a small neural network. But it may still be possible to develop an effective non-neural approach to fitting tori that bypasses the need for a neural network entirely. Experimentation and suggestions welcome!
 
 <!-- If used for optimization tasks, tori can perhaps be updated using simple gradient-based updates rather than forward passes of the neural network.  -->
 
-2. *Robustness to corruption:* Our current predictions might not be robust for point clouds whose sampling characteristics are significantly different from those seen in training, such as point clouds with significantly different sampling density, or significant amounts of noise, outliers, or missing data.
+2. *Robustness to corruption:* The network's current predictions might not be robust for point clouds whose sampling characteristics are significantly different from those seen in training, such as point clouds with significantly different sampling density, or significant amounts of noise, outliers, or missing data. It may be worthwhile to train on more diverse data --- I only trained on clean point clouds with 2048 points each. To improve accuracy, it may also be useful to include some form of neighborhood size estimation or adopt a hierarchical approach, or simply preprocess input point clouds (e.g. subsample to match a target density, noise/outlier removal).
+
+## Repository TODOs
+
+* Implement the Laplacian of the SDF of a torus in the C++ function `TorusDistanceField::evaluate_distance_gradient_laplacian_single()`
+* Implement browser-based shader using WebGL or WebGPU
+* Release Python package on PyPI (and thus implement basic CI/CD)
 
 ## Citation
 

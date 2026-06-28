@@ -68,6 +68,96 @@ class PointCloud3D:
 		normals = np.asarray(pcd.normals)
 		return PointCloud3D(points, normals, colors)
 
+	def export(self, filepath: str, binary: bool = True):
+		"""
+		Export point cloud as PLY file (binary or ASCII).
+
+		Args:
+			points: (n_points, 3) point positions
+			filepath: path to save PLY file
+			normals: (n_points, 3) optional point normals
+			colors: (n_points, 3) optional RGB colors in [0, 1] or [0, 255]
+			binary: if True, use binary format; otherwise ASCII
+		"""
+		try:
+			from plyfile import PlyData, PlyElement
+
+			n_points = len(self.points)
+
+			# Build vertex dtype based on available data
+			dtype_list = [('x', 'f4'), ('y', 'f4'), ('z', 'f4')]
+
+			if self.normals is not None:
+				dtype_list.extend([('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4')])
+
+			# Create structured array
+			vertex_data = np.empty(n_points, dtype=dtype_list)
+			vertex_data['x'] = self.points[:, 0]
+			vertex_data['y'] = self.points[:, 1]
+			vertex_data['z'] = self.points[:, 2]
+
+			if normals is not None:
+				vertex_data['nx'] = self.normals[:, 0]
+				vertex_data['ny'] = self.normals[:, 1]
+				vertex_data['nz'] = self.normals[:, 2]
+
+			if self.colors is not None:
+				vertex_data['red'] = self.colors[:, 0]
+				vertex_data['green'] = self.colors[:, 1]
+				vertex_data['blue'] = self.colors[:, 2]
+
+			# Create PLY element
+			vertex_element = PlyElement.describe(vertex_data, 'vertex')
+
+			# Write PLY file
+			ply_data = PlyData([vertex_element])
+
+			if binary:
+				ply_data.write(filepath)
+			else:
+				ply_data.text = True
+				ply_data.write(filepath)
+
+		except ImportError:
+			print('Warning: plyfile not available, writing PLY in ASCII format')
+
+			with open(filepath, 'w') as f:
+				# Header
+				f.write('ply\n')
+				f.write('format ascii 1.0\n')
+				f.write(f'element vertex {len(self.points)}\n')
+				f.write('property float x\n')
+				f.write('property float y\n')
+				f.write('property float z\n')
+
+				if normals is not None:
+					f.write('property float nx\n')
+					f.write('property float ny\n')
+					f.write('property float nz\n')
+
+				if colors is not None:
+					f.write('property uchar red\n')
+					f.write('property uchar green\n')
+					f.write('property uchar blue\n')
+
+				f.write('end_header\n')
+
+				# Vertices
+				for i, p in enumerate(self.points):
+					line = f'{p[0]:.6f} {p[1]:.6f} {p[2]:.6f}'
+
+					if self.normals is not None:
+						n = self.normals[i]
+						line += f' {n[0]:.6f} {n[1]:.6f} {n[2]:.6f}'
+
+					if self.colors is not None:
+						c = self.colors[i]
+						if c.max() <= 1.0:
+							c = (c * 255).astype(int)
+						line += f' {int(c[0])} {int(c[1])} {int(c[2])}'
+
+					f.write(line + '\n')
+
 
 def write_point_cloud(points: np.ndarray, normals: np.ndarray, filepath: str) -> None:
 	"""
@@ -134,6 +224,68 @@ class TriangleMesh:
 				file.write(f'v {vertex[0]} {vertex[1]} {vertex[2]}\n')
 			for face in self.faces:
 				file.write(f'f {face[0] + 1} {face[1] + 1} {face[2] + 1}\n')
+
+	def export_PLY(self, filepath: str, binary: bool = True):
+		try:
+			from plyfile import PlyData, PlyElement
+
+			# Create vertex element
+			vertex_data = np.array(
+				[(v[0], v[1], v[2]) for v in self.vertices], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')]
+			)
+			vertex_element = PlyElement.describe(vertex_data, 'vertex')
+
+			# Create face element
+			# Handle both triangular and quad faces
+			if self.faces.shape[1] == 3:
+				face_data = np.array(
+					[([f[0], f[1], f[2]],) for f in self.faces], dtype=[('vertex_indices', 'i4', (3,))]
+				)
+			elif self.faces.shape[1] == 4:
+				face_data = np.array(
+					[([f[0], f[1], f[2], f[3]],) for f in self.faces], dtype=[('vertex_indices', 'i4', (4,))]
+				)
+			else:
+				raise ValueError(f'Faces must have 3 or 4 vertices, got {self.faces.shape[1]}')
+
+			face_element = PlyElement.describe(face_data, 'face')
+
+			# Create PLY data and write
+			ply_data = PlyData([vertex_element, face_element])
+
+			if binary:
+				ply_data.write(filepath)
+			else:
+				ply_data.text = True
+				ply_data.write(filepath)
+
+		except ImportError:
+			# Fallback: write PLY manually
+			print('Warning: plyfile not available, writing PLY in ASCII')
+
+			with open(filepath, 'w') as f:
+				# Header
+				f.write('ply\n')
+				f.write('format ascii 1.0\n')
+				f.write(f'element vertex {len(vertices)}\n')
+				f.write('property float x\n')
+				f.write('property float y\n')
+				f.write('property float z\n')
+				f.write(f'element face {len(faces)}\n')
+				f.write('property list uchar int vertex_indices\n')
+				f.write('end_header\n')
+
+				# Vertices
+				for v in self.vertices:
+					f.write(f'{v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n')
+
+				# Faces
+				n_verts_per_face = self.faces.shape[1]
+				for face in self.faces:
+					f.write(f'{n_verts_per_face}')
+					for idx in face:
+						f.write(f' {idx}')
+					f.write('\n')
 
 	def get_vertices(self) -> np.ndarray:
 		return self.bound_object.get_vertices().T
