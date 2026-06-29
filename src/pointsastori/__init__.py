@@ -16,14 +16,4 @@ Quickstart::
 
 from .network import FundamentalFormPredictor
 from .infer import PointsAsTori, read_point_cloud
-from .shape_3d import (
-	PointCloud3D,
-	write_point_cloud,
-	TriangleMesh,
-	TorusDistanceField,
-	get_neighbors,
-	compute_optimal_radius,
-	fit_tori_from_forms,
-	TorusDistanceField,
-	BoundingVolumeHierarchy,
-)
+from .shape_3d import *

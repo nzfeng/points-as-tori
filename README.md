@@ -10,7 +10,7 @@ Paper PDF (28.4mb): [link](https://nzfeng.github.io/research/PointsAsTori/Points
 
 Project page with paper, videos, and blog-style explanations: [link](https://nzfeng.github.io/research/PointsAsTori/index.html)
 
-Have a feature or improvement in mind that you'd like to see? Parts of the repository buggy or poorly explained? Leave an issue on GitHub!
+This is a preliminary release. Have a feature or improvement in mind that you'd like to see? Parts of the repository buggy or poorly explained? Leave an issue on GitHub!
 
 ## Usage for signed distance
 
@@ -142,6 +142,7 @@ Areas of improvement mostly center around neural network performance and robustn
 
 * Implement the Laplacian of the SDF of a torus in the C++ function `TorusDistanceField::evaluate_distance_gradient_laplacian_single()`
 * Implement browser-based shader using WebGL or WebGPU
+* More efficient sphere tracing
 * Release Python package on PyPI (and thus implement basic CI/CD)
 
 ## Citation

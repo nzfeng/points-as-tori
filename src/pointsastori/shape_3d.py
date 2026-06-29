@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 from typing import Tuple
-import gc
+import jax
+import jax.numpy as jnp
 
 import pat_bindings as utilsb
 
@@ -11,6 +12,16 @@ import pat_bindings as utilsb
 # POINT CLOUDS
 # ========================================================================
 
+def point_cloud_bounding_box(positions: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+	"""
+	Args:
+		positions: (|P|, 3) array
+
+	Returns:
+		(bbox_min, bbox_max) where both bbox_min, bbox_max are (3,) arrays
+	"""
+	bbox_min, bbox_max = utilsb.point_cloud_bounding_box(np.asfortranarray(positions.T))
+	return bbox_min, bbox_max
 
 class PointCloud3D:
 	def __init__(self, points: np.ndarray, normals: np.ndarray, colors: np.ndarray = None) -> None:
@@ -96,7 +107,7 @@ class PointCloud3D:
 			vertex_data['y'] = self.points[:, 1]
 			vertex_data['z'] = self.points[:, 2]
 
-			if normals is not None:
+			if self.normals is not None:
 				vertex_data['nx'] = self.normals[:, 0]
 				vertex_data['ny'] = self.normals[:, 1]
 				vertex_data['nz'] = self.normals[:, 2]
@@ -431,6 +442,736 @@ class TriangleMesh:
 
 	def evaluate_fast_gwn(self, q: np.ndarray) -> np.ndarray:
 		return self.bound_object.evaluate_fast_gwn(np.asfortranarray(q.T))
+
+def export_PLY_with_colors(
+	vertices: np.ndarray, faces: np.ndarray, colors: np.ndarray, filepath: str, binary: bool = True
+):
+	"""
+	Export mesh with vertex colors to PLY.
+
+	Args:
+		vertices: (n_verts, 3)
+		faces: (n_faces, 3) for triangles or (n_faces, 4) for quads
+		colors: (n_verts, 3) RGB in [0, 255] or [0, 1]
+		filepath: output path
+		binary: use binary format
+	"""
+	try:
+		from plyfile import PlyData, PlyElement
+
+		# Ensure colors are uint8
+		if colors.max() <= 1.0:
+			colors = (colors * 255).astype(np.uint8)
+		else:
+			colors = colors.astype(np.uint8)
+
+		# Create vertex element with colors
+		vertex_data = np.empty(
+			len(vertices), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')]
+		)
+		vertex_data['x'] = vertices[:, 0]
+		vertex_data['y'] = vertices[:, 1]
+		vertex_data['z'] = vertices[:, 2]
+		vertex_data['red'] = colors[:, 0]
+		vertex_data['green'] = colors[:, 1]
+		vertex_data['blue'] = colors[:, 2]
+
+		vertex_element = PlyElement.describe(vertex_data, 'vertex')
+
+		# Create face element - handle both triangles and quads
+		n_verts_per_face = faces.shape[1]
+
+		if n_verts_per_face == 3:
+			face_data = np.empty(len(faces), dtype=[('vertex_indices', 'i4', (3,))])
+		elif n_verts_per_face == 4:
+			face_data = np.empty(len(faces), dtype=[('vertex_indices', 'i4', (4,))])
+		else:
+			raise ValueError(f'Faces must have 3 or 4 vertices, got {n_verts_per_face}')
+
+		face_data['vertex_indices'] = faces
+
+		face_element = PlyElement.describe(face_data, 'face')
+
+		# Write PLY
+		ply_data = PlyData([vertex_element, face_element])
+		if binary:
+			ply_data.write(filepath)
+		else:
+			ply_data.text = True
+			ply_data.write(filepath)
+
+	except ImportError:
+		print('Warning: plyfile not available, writing ASCII PLY manually')
+
+		n_verts_per_face = faces.shape[1]
+
+		# Ensure colors are integers
+		if colors.max() <= 1.0:
+			colors = (colors * 255).astype(int)
+		else:
+			colors = colors.astype(int)
+
+		with open(filepath, 'w') as f:
+			f.write('ply\nformat ascii 1.0\n')
+			f.write(f'element vertex {len(vertices)}\n')
+			f.write('property float x\nproperty float y\nproperty float z\n')
+			f.write('property uchar red\nproperty uchar green\nproperty uchar blue\n')
+			f.write(f'element face {len(faces)}\n')
+			f.write('property list uchar int vertex_indices\n')
+			f.write('end_header\n')
+
+			for i, v in enumerate(vertices):
+				c = colors[i]
+				f.write(f'{v[0]:.6f} {v[1]:.6f} {v[2]:.6f} {c[0]} {c[1]} {c[2]}\n')
+
+			for face in faces:
+				f.write(f'{n_verts_per_face}')
+				for idx in face:
+					f.write(f' {idx}')
+				f.write('\n')
+
+# ========================================================================
+# SDFs
+# ========================================================================
+
+SDF_SHAPES = [
+	'circle',
+	'pie',
+	'arc',
+	'pill',
+	'vesica',
+	'box',
+	'cross',
+	'isosceles',
+	'triangle',
+	'hexagon',
+	'ellipse',
+	'heart',
+	'pentagon',
+	'moon',
+	'trapezoid',
+	'quad',
+]
+
+class SDF2D:
+	def __init__(self, instance=utilsb.Circle2D):
+		self.bound_object = instance
+		self._has_gradient = self.bound_object.has_gradient()
+
+	def evaluate_signed_distance_and_gradient(self, q: jnp.ndarray, isovalue: float = 0.0) -> tuple[float, jnp.ndarray]:
+		if self._has_gradient:
+			if q.ndim == 1:
+				result = self.bound_object.evaluate_with_gradient(np.asfortranarray(q), isovalue)
+				return result[0].T, result[1].T
+			result = self.bound_object.evaluate_with_gradient_batch(np.asfortranarray(q.T), isovalue)
+			return result[0].T, result[1].T
+
+		return self.evaluate_signed_distance(q, isovalue), self.evaluate_signed_distance_gradient(q)
+
+	def evaluate_signed_distance(self, q: jnp.ndarray, isovalue: float = 0.0) -> float:
+		"""
+		A positive offset value means the shape gets inflated.
+		"""
+		if q.ndim == 1:
+			return self.bound_object.evaluate(np.asfortranarray(q), isovalue)
+		return self.bound_object.evaluate_batch(np.asfortranarray(q).T, isovalue).T
+
+	def evaluate_signed_distance_gradient_3D(self, q: np.ndarray, is_extrusion: bool, param: float):
+		gradients = self.bound_object.evaluate_signed_distance_gradient(q, is_extrusion, param)
+		return gradients.T
+
+	def evaluate_signed_distance_gradient(self, q: jnp.ndarray) -> jnp.ndarray:
+		if self._has_gradient:
+			_, grad = self.evaluate_signed_distance_and_gradient(q)
+			return grad
+
+		if q.ndim == 1:
+			q = q[None, :]
+		return self.bound_object.evaluate_gradient_batch(np.asfortranarray(q).T).T
+
+	def evaluate_signed_distance_laplacian(self, q: jnp.ndarray) -> jnp.ndarray:
+		if q.ndim == 1:
+			q = q[None, :]
+
+		return self.bound_object.evaluate_laplacian_batch(np.asfortranarray(q).T)
+
+	def evaluate_revolution(self, q: np.ndarray, o: float) -> np.ndarray:
+		if q.ndim == 1:
+			q = q[None, :]
+		return self.bound_object.evaluate_revolution(np.asfortranarray(q.T), o)
+
+	def evaluate_extrusion(self, q: np.ndarray, h: float) -> np.ndarray:
+		if q.ndim == 1:
+			q = q[None, :]
+		return self.bound_object.evaluate_extrusion(np.asfortranarray(q.T), h)
+
+	def sample_revolution(
+		self,
+		n_samples: int,
+		o: float,
+		bbox_min: np.ndarray = np.array([1, 1, 1]),
+		bbox_max: np.ndarray = np.array([-1, -1, -1]),
+		sigma_p: float = 0.0,
+		sigma_n: float = 0.0,
+		seed: int = 0,
+	) -> np.ndarray:
+		points, normals = self.bound_object.sample_revolution(n_samples, o, bbox_min, bbox_max, sigma_p, sigma_n, seed)
+		return points.T, normals.T
+
+	def sample_extrusion(
+		self,
+		n_samples: int,
+		h: float,
+		bbox_min: np.ndarray = np.array([1, 1, 1]),
+		bbox_max: np.ndarray = np.array([-1, -1, -1]),
+		sigma_p: float = 0.0,
+		sigma_n: float = 0.0,
+		seed: int = 0,
+	) -> np.ndarray:
+		points, normals = self.bound_object.sample_extrusion(n_samples, h, bbox_min, bbox_max, sigma_p, sigma_n, seed)
+		return points.T, normals.T
+
+	def sample_revolution_narrow_band(
+		self,
+		n_samples: int,
+		o: float,
+		offset: float,
+		bbox_min: np.ndarray = np.array([1, 1, 1]),
+		bbox_max: np.ndarray = np.array([-1, -1, -1]),
+		seed: int = 0,
+	) -> np.ndarray:
+		samples = self.bound_object.sample_revolution_narrow_band(n_samples, o, offset, bbox_min, bbox_max, seed)
+		return samples.T
+
+	def sample_extrusion_narrow_band(
+		self,
+		n_samples: int,
+		h: float,
+		offset: float,
+		bbox_min: np.ndarray = np.array([1, 1, 1]),
+		bbox_max: np.ndarray = np.array([-1, -1, -1]),
+		seed: int = 0,
+	) -> np.ndarray:
+		samples = self.bound_object.sample_extrusion_narrow_band(n_samples, h, offset, bbox_min, bbox_max, seed)
+		return samples.T
+
+	def sample_farthest_point_cloud(
+		self,
+		n_points: int,
+		is_extrusion: bool,
+		SDF3D_param: float,
+		seed: int,
+	):
+		points, normals = self.bound_object.sample_farthest_point_cloud(n_points, is_extrusion, SDF3D_param, seed)
+		return points.T, normals.T
+
+	def ray_intersections(self, ros: jnp.ndarray, rds: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
+		result = self.bound_object.ray_intersect_batch(np.asfortranarray(ros.T), np.asfortranarray(rds.T))
+		return result[0].T, result[1].T
+
+	@staticmethod
+	def load_SDF(filepath):
+		parts = re.split('_|/|-|\.', filepath)
+		if 'circle' in parts:
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'r':
+						radius = float(parts[1])
+						return Circle2D(radius)
+		elif 'pie' in parts:
+			radius = None
+			t = None
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'r':
+						radius = float(parts[1])
+					elif parts[0] == 't':
+						t = float(parts[1])
+			return Pie2D(radius, t)
+		elif 'arc' in parts:
+			sc = None
+			ra = None
+			rb = None
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'sc':
+						sc = jnp.array(list(map(float, parts[1:3])))
+					elif parts[0] == 'ra':
+						ra = float(parts[1])
+					elif parts[0] == 'rb':
+						rb = float(parts[1])
+			return Arc2D(sc, ra, rb)
+		elif 'pill' in parts:
+			a = None
+			b = None
+			r = None
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'a':
+						a = jnp.array(list(map(float, parts[1:3])))
+					elif parts[0] == 'b':
+						b = jnp.array(list(map(float, parts[1:3])))
+					elif parts[0] == 'r':
+						r = float(parts[1])
+			return Pill2D(a, b, r)
+		elif 'vesica' in parts:
+			r = None
+			d = None
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'r':
+						r = float(parts[1])
+					elif parts[0] == 'd':
+						d = float(parts[1])
+			return Vesica2D(r, d)
+		elif 'box' in parts:
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'b':
+						b = jnp.array(list(map(float, parts[1:3])))
+						return Box2D(b)
+		elif 'cross' in parts:
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'b':
+						b = jnp.array(list(map(float, parts[1:3])))
+						return Cross2D(b)
+		elif 'isosceles' in parts:
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'q':
+						q = jnp.array(list(map(float, parts[1:3])))
+						return TriangleIsosceles2D(q)
+		elif 'triangle' in parts:
+			v = []
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'v':
+						v.append(list(map(float, parts[1:3])))
+			return Triangle2D(v=jnp.array(v))
+		elif 'hexagon' in parts:
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'r':
+						r = float(parts[1])
+						return Hexagon2D(r)
+		elif 'ellipse' in parts:
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'ab':
+						ab = jnp.array(list(map(float, parts[1:3])))
+						return Ellipse2D(ab)
+		elif 'heart' in parts:
+			return Heart2D()
+		elif 'pentagon' in parts:
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'r':
+						r = float(parts[1])
+						return Pentagon2D(r)
+		elif 'moon' in parts:
+			d = None
+			ra = None
+			rb = None
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'd':
+						d = float(parts[1])
+					elif parts[0] == 'ra':
+						ra = float(parts[1])
+					elif parts[0] == 'rb':
+						rb = float(parts[1])
+			return Moon2D(d, ra, rb)
+		elif 'trapezoid' in parts:
+			ra = None
+			rb = None
+			he = None
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'ra':
+						ra = float(parts[1])
+					elif parts[0] == 'rb':
+						rb = float(parts[1])
+					elif parts[0] == 'he':
+						he = float(parts[1])
+			return Trapezoid2D(ra, rb, he)
+		elif 'quad' in parts:
+			v = []
+			with open(filepath, 'r') as file:
+				for line in file:
+					parts = line.strip().split()
+					if not parts:
+						continue
+					elif parts[0] == 'v':
+						v.append(list(map(float, parts[1:3])))
+			return Quad2D(v=jnp.array(v))
+		else:
+			raise ValueError(f'Unknown SDF type in file: {filepath}')
+
+
+class Circle2D(SDF2D):
+	def __init__(self, radius: float):
+		super().__init__(utilsb.Circle2D(radius))
+		self.radius = radius
+
+
+class Pie2D(SDF2D):
+	def __init__(self, radius: float, t: float):
+		super().__init__(utilsb.Pie2D(radius, t))
+		self.radius = radius
+		self.t = t
+
+
+class Arc2D(SDF2D):
+	def __init__(self, sc: np.ndarray, ra: float, rb: float):
+		super().__init__(utilsb.Arc2D(np.asarray(sc), ra, rb))
+		self.sc = sc
+		self.ra = ra
+		self.rb = rb
+
+
+class Pill2D(SDF2D):
+	def __init__(self, a: np.ndarray, b: np.ndarray, r: float):
+		super().__init__(utilsb.Pill2D(np.asarray(a), np.asarray(b), r))
+		self.a = a
+		self.b = b
+		self.r = r
+
+
+class Vesica2D(SDF2D):
+	def __init__(self, r: float, d: float):
+		super().__init__(utilsb.Vesica2D(r, d))
+		self.r = r
+		self.d = d
+
+
+class Box2D(SDF2D):
+	def __init__(self, b: np.ndarray):
+		super().__init__(utilsb.Box2D(np.asarray(b)))
+		self.b = b
+
+
+class Cross2D(SDF2D):
+	def __init__(self, b: np.ndarray):
+		super().__init__(utilsb.Cross2D(np.asarray(b)))
+		self.b = b
+
+
+class TriangleIsosceles2D(SDF2D):
+	def __init__(self, q: np.ndarray):
+		super().__init__(utilsb.TriangleIsosceles2D(np.asarray(q)))
+		self.q = q
+
+
+class Triangle2D(SDF2D):
+	def __init__(self, v0: np.ndarray, v1: np.ndarray, v2: np.ndarray):
+		super().__init__(utilsb.Triangle2D(np.asarray(v0), np.asarray(v1), np.asarray(v2)))
+		self.v = [v0, v1, v2]
+
+
+class Hexagon2D(SDF2D):
+	def __init__(self, r: float):
+		super().__init__(utilsb.Hexagon2D(r))
+		self.r = r
+
+
+class Ellipse2D(SDF2D):
+	def __init__(self, ab: np.ndarray):
+		super().__init__(utilsb.Ellipse2D(np.asarray(ab)))
+		self.ab = ab
+
+
+class Heart2D(SDF2D):
+	def __init__(self):
+		super().__init__(utilsb.Heart2D())
+
+
+class Pentagon2D(SDF2D):
+	def __init__(self, r: float):
+		super().__init__(utilsb.Pentagon2D(r))
+		self.r = r
+
+
+class Moon2D(SDF2D):
+	def __init__(self, d: float, ra: float, rb: float):
+		super().__init__(utilsb.Moon2D(d, np.asarray(ra), np.asarray(rb)))
+		self.d = d
+		self.ra = ra
+		self.rb = rb
+
+
+class Trapezoid2D(SDF2D):
+	def __init__(self, ra: float, rb: float, he: float):
+		super().__init__(utilsb.Trapezoid2D(ra, rb, he))
+		self.ra = ra
+		self.rb = rb
+		self.he = he
+
+
+class Quad2D(SDF2D):
+	def __init__(self, v0: np.ndarray, v1: np.ndarray, v2: np.ndarray, v3: np.ndarray):
+		super().__init__(utilsb.Quad2D(np.asarray(v0), np.asarray(v1), np.asarray(v2), np.asarray(v3)))
+		self.v = [v0, v1, v2, v3]
+
+
+def sample_SDF(shape_name: str = 'circle', key: jax.random.PRNGKey = None) -> SDF2D:
+	"""
+	Given a shape, define an SDF with random parameters
+	"""
+	if key == None:
+		key = jax.random.PRNGKey(42)
+
+	# Some guidelines so shapes stay roughly within [-1,1]^2.
+	r_min = 0.1
+	r_max = 0.9
+	r_ratio_min = 0.1  # minimum ratio of smaller radius to larger radius
+	r_ratio_max = 0.9  # maximum ratio of smaller radius to larger radius
+	t_min = jnp.pi / 6
+	t_max = 5 * jnp.pi / 6
+
+	shape = None
+	if shape_name == 'circle':
+		# Can only choose half-height, which controls global scaling --- equivalent to varying the sampling density per neighborhood.
+		# Nevertheless, choose random radius.
+		r = jax.random.uniform(key, minval=r_min, maxval=r_max)
+		shape = Circle2D(r)
+	elif shape_name == 'pie':
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		r = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)
+		t = jax.random.uniform(subkey2, minval=t_min, maxval=t_max)
+		shape = Pie2D(r, t)
+	elif shape_name == 'arc':
+		key, subkey1, subkey2, subkey3 = jax.random.split(key, 4)
+		ra = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)  # outer radius
+		rb = jax.random.uniform(subkey2, minval=r_ratio_min, maxval=r_ratio_max) * ra  # inner radius
+		angle = jax.random.uniform(subkey3, minval=t_min, maxval=t_max)  # angle
+		sc = np.array([np.sin(angle), np.cos(angle)])
+		shape = Arc2D(sc, ra, rb)
+	elif shape_name == 'pill':
+		# two endpoints and radius
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		halflength = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)
+		a = jnp.array([-halflength, 0])  # first endpoint
+		b = jnp.array([halflength, 0])  # second endpoint
+		r = jax.random.uniform(subkey2, minval=r_ratio_min, maxval=r_ratio_max) * halflength
+		shape = Pill2D(a, b, r)
+	elif shape_name == 'vesica':
+		# radius, center offset
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		r = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)
+		d = jax.random.uniform(subkey2, minval=r_ratio_min, maxval=r_ratio_max) * (2.0 * r) - r
+		shape = Vesica2D(r, d)
+	elif shape_name == 'box':
+		# half-extents
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		bx = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)
+		by = jax.random.uniform(subkey2, minval=r_min, maxval=r_max)
+		b = jnp.array([bx, by])
+		shape = Box2D(b)
+	elif shape_name == 'cross':
+		# (b.x, b.y) are horizontal/vertical arm dimensions
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		bx = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)
+		by = jax.random.uniform(subkey2, minval=r_min, maxval=r_max)
+		b = jnp.array([bx, by])
+		shape = Cross2D(b)
+	elif shape_name == 'isosceles':
+		# size
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		qx = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)  # base length; must be positive
+		qy = -jax.random.uniform(subkey2, minval=r_min, maxval=r_max)  # controls "height" above origin
+		q = jnp.array([qx, qy])
+		shape = TriangleIsosceles2D(q)
+	elif shape_name == 'triangle':
+		# Start with equilateral triangle, then perturb
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		h = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)  # height
+		perturbation_amt = r_ratio_max * h
+		perturbation_vecs = jax.random.uniform(subkey2, shape=(3, 2))
+		perturbation_vecs /= jnp.linalg.norm(perturbation_vecs, axis=1, keepdims=True)
+		perturbation = perturbation_amt * perturbation_vecs
+		b = 2.0 * h / jnp.sqrt(3.0)
+		v0 = jnp.array([-b, -h]) + perturbation[0]
+		v1 = jnp.array([b, -h]) + perturbation[1]
+		v2 = jnp.array([0, h]) + perturbation[2]
+		shape = Triangle2D(v0, v1, v2)
+	elif shape_name == 'hexagon':
+		r = jax.random.uniform(key, minval=r_min, maxval=r_max)
+		shape = Hexagon2D(r)
+	elif shape_name == 'ellipse':
+		# semi-axes (a, b)
+		key, subkey1, subkey2 = jax.random.split(key, 3)
+		a = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)
+		b = jax.random.uniform(subkey2, minval=r_min, maxval=r_max)
+		ab = jnp.array([a, b])
+		shape = Ellipse2D(ab)
+	elif shape_name == 'heart':
+		return Heart2D()
+	elif shape_name == 'pentagon':
+		r = jax.random.uniform(key, minval=r_min, maxval=r_max)
+		shape = Pentagon2D(r)
+	elif shape_name == 'moon':
+		# d is offset, ra and rb are circle radii
+		key, subkey1, subkey2, subkey3 = jax.random.split(key, 4)
+		ra = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)  # outer radius
+		rb = jax.random.uniform(subkey2, minval=r_ratio_min, maxval=r_ratio_max) * ra  # inner radius
+		d = jax.random.uniform(subkey3, minval=(ra - rb) / r_ratio_max, maxval=(ra + rb) * r_ratio_max)
+		shape = Moon2D(d, ra, rb)
+	elif shape_name == 'trapezoid':
+		key, subkey1, subkey2, subkey3 = jax.random.split(key, 4)
+		ra = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)
+		rb = jax.random.uniform(subkey2, minval=r_min, maxval=r_max)
+		he = 2.0 * jax.random.uniform(subkey3, minval=r_min, maxval=r_max)
+		shape = Trapezoid2D(ra, rb, he)
+	elif shape_name == 'quad':
+		# Generate as slightly perturbed rectangle for validity
+		key, subkey1, subkey2, subkey3 = jax.random.split(key, 4)
+		w = jax.random.uniform(subkey1, minval=r_min, maxval=r_max)  # width
+		h = jax.random.uniform(subkey2, minval=r_min, maxval=r_max)  # height
+		perturbation_amt = min((r_ratio_max * h), (r_ratio_max * w))
+		perturbation_vecs = jax.random.uniform(subkey2, shape=(4, 2))
+		perturbation_vecs /= jnp.linalg.norm(perturbation_vecs, axis=1, keepdims=True)
+		perturbation = perturbation_amt * perturbation_vecs
+		v0 = jnp.array([-w, -h]) + perturbation[0]
+		v1 = jnp.array([w, -h]) + perturbation[1]
+		v2 = jnp.array([w, h]) + perturbation[2]
+		v3 = jnp.array([-w, h]) + perturbation[3]
+		shape = Quad2D(v0, v1, v2, v3)
+
+	return shape
+
+
+class SDF3D:
+	def __init__(self, sdf2d: SDF2D, is_extrusion: bool, param: float):
+		self.SDF2D = sdf2d
+		self.is_extrusion = is_extrusion
+		self.param = param  # either o or h
+
+	def evaluate_signed_distance(self, q: np.ndarray) -> np.ndarray:
+		if self.is_extrusion:
+			return self.SDF2D.evaluate_extrusion(q, self.param)
+
+		return self.SDF2D.evaluate_revolution(q, self.param)
+
+	def evaluate_signed_distance_and_gradient(self, q: np.ndarray):
+		distances = self.evaluate_signed_distance(q)
+		gradients = self.SDF2D.evaluate_signed_distance_gradient_3D(
+			np.asfortranarray(q.T), self.is_extrusion, self.param
+		)
+		return distances, gradients
+
+	def sample_farthest_point_cloud(
+		self,
+		n_points: int,
+		seed: int,
+	):
+		return self.SDF2D.sample_farthest_point_cloud(n_points, self.is_extrusion, self.param, seed)
+
+	def sample_uneven_point_cloud(
+		self,
+		is_extrusion: bool,
+		SDF3D_param: float,
+		n_cameras: int,
+		sensor_size: float,
+		grid_spacing_min: float,
+		grid_spacing_max: float,
+		max_noise_level: float,
+		max_normals_to_flip: float,
+		max_points: int,
+		seed: int,
+	):
+		return self.SDF2D.sample_uneven_point_cloud(
+			is_extrusion,
+			SDF3D_param,
+			n_cameras,
+			sensor_size,
+			grid_spacing_min,
+			grid_spacing_max,
+			max_noise_level,
+			max_normals_to_flip,
+			max_points,
+			seed,
+		)
+
+	def sample_uniformly(
+		self,
+		n_points: int,
+		bbox_min: np.ndarray = np.array([1, 1, 1]),
+		bbox_max: np.ndarray = np.array([-1, -1, -1]),
+		sigma_p: float = 0.0,
+		sigma_n: float = 0.0,
+		seed: int = 0,
+	) -> np.ndarray:
+		"""
+		Sample points uniformly on the surface.
+		"""
+		if self.is_extrusion:
+			points, _ = self.SDF2D.sample_extrusion(n_points, self.param, bbox_min, bbox_max, sigma_p, sigma_n, seed)
+			return points
+		else:
+			points, _ = self.SDF2D.sample_revolution(n_points, self.param, bbox_min, bbox_max, sigma_p, sigma_n, seed)
+			return points
+
+	def sample_points_and_normals_uniformly(self, n_points, seed):
+		return self.SDF2D.sample_points_and_normals_uniformly(n_points, self.is_extrusion, self.param, seed)
+
+	def sample_narrow_band(
+		self,
+		n_points: int,
+		offset: float = 0.1,
+		bbox_min: np.ndarray = np.array([1, 1, 1]),
+		bbox_max: np.ndarray = np.array([-1, -1, -1]),
+		seed: int = 0,
+	) -> np.ndarray:
+		"""
+		Sample points in a narrow band around the surface.
+		"""
+		if self.is_extrusion:
+			return self.SDF2D.sample_extrusion_narrow_band(n_points, self.param, offset, bbox_min, bbox_max, seed)
+		else:
+			return self.SDF2D.sample_revolution_narrow_band(n_points, self.param, offset, bbox_min, bbox_max, seed)
 
 
 # ========================================================================

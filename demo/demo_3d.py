@@ -107,7 +107,7 @@ def mesh_isocontour(
 
 	# Evaluate distances on all points at once
 	n_points = len(grid_points)
-	print(f'\tEvaluating {eval_method} method on {n_points} grid points...')
+	print(f'\tEvaluating {SHADER_QUANTITIES[eval_method]} method on {n_points} grid points...')
 	distances = None
 	isovalue = 0.0
 	if eval_method == ShaderQuantity.PAT.value:
@@ -317,8 +317,8 @@ class ShaderWindow(pyglet.window.Window):
 		self.lambda_scale = 1.0
 		self.max_exp_arg = 64.0
 		self.max_neighborhood_size = 128
-		self.neighborhood_size = K_NEIGHBORS_ACCELERATION
-		self.neighborhood_radius = 0.2
+		self.neighborhood_size = -1
+		self.neighborhood_radius = 0.0
 		self.epsilon = 0.5
 		self.model_idx = 0
 
@@ -331,6 +331,7 @@ class ShaderWindow(pyglet.window.Window):
 
 		# GUI parameters
 		self.vis_cutplane = True
+		self.vis_shape = False
 		self.vis_points = True
 		self.vis_normals = False
 		self.vis_contour = False
@@ -396,7 +397,7 @@ class ShaderWindow(pyglet.window.Window):
 		# For shaders
 		self.render_passes = []
 
-		self.available_shapes = OBJ_FILEPATHS + PLY_FILEPATHS
+		self.available_shapes = OBJ_FILEPATHS + PLY_FILEPATHS + SDF_SHAPES
 		self.current_shape_index = 0
 		self.quantity = SHADER_QUANTITIES[ShaderQuantity.PAT.value]
 		self.quantity_idx = SHADER_QUANTITIES.index(self.quantity)
@@ -421,45 +422,83 @@ class ShaderWindow(pyglet.window.Window):
 		"""
 		Load an input point cloud file.
 		"""
-		extension = self.shape_filepath.split('.')[-1]
+		filename_components = self.shape_filepath.split('.')
+		extension = filename_components[-1]
 		point_colors = np.zeros((1,))
 		self.shape = None
 		self.SDF3D = None
 		self.isocontour = None
-		if extension == 'obj':
-			t0 = time.time()
-			self.shape = TriangleMesh.read_OBJ(self.shape_filepath)
-			self.shape.center_and_scale()
-			self.shape_size = self.shape.faces.shape[0]
 
-			points, normals = self.shape.sample_uniform_point_cloud(
-				n_points=self.n_points, max_noise_level=0.0, max_normals_to_flip=0.0, seed=self.seed
-			)
-			# points, normals = self.shape.sample_farthest_point_cloud(n_points=self.n_points, max_noise_level=0.0, max_normals_to_flip=0.0, seed=self.seed)
+		if len(filename_components) == 1:
+			# Sample a revolved/extruded SDF
+			self.key, subkey = jax.random.split(self.key)
+			is_extrusion = False
+			SDF3D_param = 0.0
+			n_samples = 1024
+			shape = sample_SDF(extension, subkey)
+			if jax.random.uniform(subkey, minval=0.0, maxval=1.0) < 0.5:
+				self.key, subkey = jax.random.split(self.key)
+				SDF3D_param = jax.random.uniform(subkey, minval=0.1, maxval=0.3)
+				self.SDF3D = SDF3D(sdf2d=shape, is_extrusion=False, param=SDF3D_param)
+				points, normals = shape.sample_revolution(
+					n_samples, o=SDF3D_param
+				)
+				self.pointcloud = PointCloud3D(points, normals)
+				self.pointcloud_size = self.pointcloud.size
+			else:
+				is_extrusion = True
+				self.key, subkey = jax.random.split(self.key)
+				SDF3D_param = jax.random.uniform(subkey, minval=0.1, maxval=0.3)
+				self.SDF3D = SDF3D(sdf2d=shape, is_extrusion=True, param=SDF3D_param)
+				points, normals = shape.sample_extrusion(
+					n_samples, h=SDF3D_param
+				)
+				self.pointcloud = PointCloud3D(points, normals)
+				self.pointcloud_size = self.pointcloud.size
 
-			self.pointcloud = PointCloud3D(points, normals)
-			self.pointcloud_size = self.pointcloud.size
-			t1 = time.time()
-			print('Point cloud generation: %f s' % (t1 - t0))
-			log_memory(f'\nAfter PointCloud3D()')
+		else:
 
-			t0 = time.time()
-			self.create_triangle_mesh_texture()
-			t1 = time.time()
-			print('Triangle mesh texture creation (precompute): %f s' % (t1 - t0))
-			log_memory(f'\nAfter create_triangle_mesh_texture()')
-		elif extension == 'pc' or extension == 'ply':
-			t0 = time.time()
-			self.pointcloud = PointCloud3D.read(self.shape_filepath)
-			self.pointcloud_size = self.pointcloud.size
-			# self.pointcloud.center_and_scale()
-			t1 = time.time()
-			print('Load point cloud: %f s' % (t1 - t0))
+			import open3d as o3d
+			o3d_mesh = o3d.io.read_triangle_mesh(self.shape_filepath)
+			n_faces = len(np.asarray(o3d_mesh.triangles))
 
-			# Look for color/texture data
-			point_colors = np.zeros((self.pointcloud.size, 3))
-			if self.pointcloud.colors is not None and len(self.pointcloud.colors) > 0:
-				point_colors = self.pointcloud.colors
+			if n_faces > 0:
+				t0 = time.time()
+				vertices = np.asarray(o3d_mesh.vertices, dtype=np.float64)
+				faces = np.asarray(o3d_mesh.triangles, dtype=np.int64)
+				self.shape = TriangleMesh(vertices, faces)
+				self.shape.center_and_scale()
+				self.shape_size = self.shape.faces.shape[0]
+
+				# If a mesh was passed in, sample a point cloud
+				points, normals = self.shape.sample_uniform_point_cloud(
+					n_points=self.n_points, max_noise_level=0.0, max_normals_to_flip=0.0, seed=self.seed
+				)
+				# points, normals = self.shape.sample_farthest_point_cloud(n_points=self.n_points, max_noise_level=0.0, max_normals_to_flip=0.0, seed=self.seed)
+
+				self.pointcloud = PointCloud3D(points, normals)
+				self.pointcloud_size = self.pointcloud.size
+				t1 = time.time()
+				print('Point cloud generation: %f s' % (t1 - t0))
+				log_memory(f'\nAfter PointCloud3D()')
+
+				t0 = time.time()
+				self.create_triangle_mesh_texture()
+				t1 = time.time()
+				print('Triangle mesh texture creation (precompute): %f s' % (t1 - t0))
+				log_memory(f'\nAfter create_triangle_mesh_texture()')
+			else:
+				t0 = time.time()
+				self.pointcloud = PointCloud3D.read(self.shape_filepath)
+				self.pointcloud_size = self.pointcloud.size
+				# self.pointcloud.center_and_scale()
+				t1 = time.time()
+				print('Load point cloud: %f s' % (t1 - t0))
+
+				# Look for color/texture data
+				point_colors = np.zeros((self.pointcloud.size, 3))
+				if self.pointcloud.colors is not None and len(self.pointcloud.colors) > 0:
+					point_colors = self.pointcloud.colors
 
 		print('Size of point cloud: %d' % (self.pointcloud_size))
 
@@ -654,8 +693,6 @@ class ShaderWindow(pyglet.window.Window):
 			n_height = resolution
 			n_width = int(np.ceil(resolution * width / height))
 
-		print(n_width, n_height)
-
 		# Resize framebuffer if needed
 		if self.cutplane_export_pass.width != n_width or self.cutplane_export_pass.height != n_height:
 			self.cutplane_export_pass.width = n_width
@@ -791,10 +828,6 @@ class ShaderWindow(pyglet.window.Window):
 		Create a 2D texture that will be read by shaders, that stores the input point cloud.
 		"""
 
-		# Using the heuristic based on 2048 points within a [-1,1]^3 box
-		# lam = 1e3 * ((self.pointcloud.size / 2048 ) ** (1./3.))
-		# self.neighborhood_radius = 128./(lam)
-
 		# Pack as RGBA, two texels per point: [point_x, point_y, point_z, is_outlier], [normal_x, normal_y, normal_z, 0]
 
 		# Store point areas
@@ -890,7 +923,7 @@ class ShaderWindow(pyglet.window.Window):
 			self.TDF,
 			isoval=self.isovalue,
 			grid_resolution=self.grid_resolution,
-			eval_method=self.quantity,
+			eval_method=self.quantity_idx,
 			epsilon=self.epsilon,
 			method='flying_edges',
 		)
@@ -1074,10 +1107,10 @@ class ShaderWindow(pyglet.window.Window):
 			changed, self.vis_cutplane = imgui.checkbox('Display cut plane', self.vis_cutplane)
 			changed, self.colormap_range = imgui.slider_float('Colormap range', self.colormap_range, 0, 10.0, '%0.2f')
 			if self.shape != None:
-				changed, self.vis_shape = imgui.checkbox('Display shape', self.vis_shape)
+				changed, self.vis_shape = imgui.checkbox('Display input mesh', self.vis_shape)
 			changed, self.vis_points = imgui.checkbox('Display points', self.vis_points)
 			changed, self.vis_normals = imgui.checkbox('Display normals', self.vis_normals)
-			if self.quantity == ShaderQuantity.PAT.value:
+			if self.quantity_idx == ShaderQuantity.PAT.value:
 				changed, self.vis_tori = imgui.checkbox('Display tori', self.vis_tori)
 			changed, self.vis_contour = imgui.checkbox('Display contour', self.vis_contour)
 
@@ -1114,13 +1147,6 @@ class ShaderWindow(pyglet.window.Window):
 			changed, self.cut_plane_rotation_x = imgui.slider_float(
 				'Cut plane rotation (second)', self.cut_plane_rotation_x, 0, 2 * np.pi, '%.2f'
 			)
-
-			if self.vis_tori:
-				changed, self.torus_opacity = imgui.slider_float('Torus opacity', self.torus_opacity, 0.0, 1.0, '%.2f')
-			if self.vis_contour:
-				changed, self.contour_opacity = imgui.slider_float(
-					'Contour opacity', self.contour_opacity, 0.0, 1.0, '%.2f'
-				)
 			changed, self.isoband_frequency = imgui.slider_float(
 				'Isoband freq.', self.isoband_frequency, 0.0, 360.0, '%.2f'
 			)
@@ -1241,6 +1267,7 @@ class ShaderWindow(pyglet.window.Window):
 		uniforms = common_uniforms | {
 			'pointRadius': self.point_radius,
 			'isobandFrequency': self.isoband_frequency,
+			'vis_shape': self.vis_shape,
 			'vis_cutplane': self.vis_cutplane,
 			'vis_points': self.vis_points,
 			'vis_tori': self.vis_tori,

@@ -12,157 +12,6 @@
 namespace nb = nanobind;
 using namespace nb::literals;
 
-
-// ============================================================================
-// UTILITIES
-// ============================================================================
-
-// `rotation` is in [0, 2π], and controls the rotation of the local x-axis around the local z-axis, using an arbitrary
-// reference vector.
-std::pair<Eigen::Vector3d, Eigen::Vector3d> orthonormal_basis(const Eigen::Vector3d& n, double rotation) {
-
-    Eigen::Vector3d n_hat = n / n.norm();
-
-    Eigen::Vector3d u = std::abs(n_hat.x()) > 0.9 ? Eigen::Vector3d(0., 1., 0.) : Eigen::Vector3d(1., 0., 0.);
-
-    Eigen::Matrix3d m = Eigen::AngleAxisd(rotation, n_hat).toRotationMatrix();
-    u = m * u;
-
-    Eigen::Vector3d s = n_hat.cross(u);
-    s /= s.norm();
-    Eigen::Vector3d t = n_hat.cross(s);
-    return {s, t};
-}
-
-std::pair<Eigen::Vector3d, Eigen::Vector3d> orthonormal_basis_random(const Eigen::Vector3d& n, int seed) {
-
-    std::mt19937 rng(seed);
-    std::normal_distribution dist{0.0, 1.0};
-
-    Eigen::Vector3d n_hat = n / n.norm();
-    Eigen::Vector3d s(dist(rng), dist(rng), dist(rng));
-    s -= s.dot(n_hat) * n_hat;
-    s /= s.norm();
-    Eigen::Vector3d t = n_hat.cross(s);
-
-    return {s, t};
-}
-
-// Generate evenly-spaced positions on sphere by Fibonacci sampling.
-// Add an arbitrary rotation of the points.
-Eigen::Matrix<double, 3, Eigen::Dynamic> sample_sphere_positions(int n_samples, std::mt19937& rng) {
-
-    Eigen::Matrix<double, 3, Eigen::Dynamic> positions(3, n_samples);
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-    double golden_ratio = 0.5 * (std::sqrt(5) + 1.0);
-    for (int i = 0; i < n_samples; i++) {
-        double phi = std::acos(1. - 2.0 * i / n_samples);
-        double theta = 2.0 * i * M_PI / golden_ratio;
-        Eigen::Vector3d p(std::sin(phi) * std::cos(theta), std::sin(phi) * std::sin(theta), std::cos(phi));
-        positions.col(i) = p;
-    }
-
-    // Apply random rotation
-    double u1 = dist(rng);
-    double u2 = dist(rng);
-    double u3 = dist(rng);
-    Eigen::Quaterniond q(std::sqrt(1 - u1) * std::sin(2 * M_PI * u2), std::sqrt(1 - u1) * std::cos(2 * M_PI * u2),
-                         std::sqrt(u1) * std::sin(2 * M_PI * u3), std::sqrt(u1) * std::cos(2 * M_PI * u3));
-    positions = q.toRotationMatrix() * positions;
-
-    return positions;
-}
-
-// ============================================================================
-// SAMPLING
-// ============================================================================
-
-Eigen::Matrix<double, 3, Eigen::Dynamic> sample_bounding_box(int n_points, const Eigen::Vector3d& bbox_min,
-                                                             const Eigen::Vector3d& bbox_max, int seed) {
-    // Mollify degenerate bounding boxes
-    Eigen::Vector3d diag = bbox_max - bbox_min;
-    double min_extent = 1e-2; // Minimum extent to avoid degenerate boxes
-
-    Eigen::Vector3d mollified_min = bbox_min;
-    Eigen::Vector3d mollified_max = bbox_max;
-
-    for (int d = 0; d < 3; d++) {
-        if (diag(d) < min_extent) {
-            double center = 0.5 * (bbox_min(d) + bbox_max(d));
-            mollified_min(d) = center - 0.5 * min_extent;
-            mollified_max(d) = center + 0.5 * min_extent;
-        }
-    }
-
-    Eigen::Vector3d mollified_diag = mollified_max - mollified_min;
-
-    // Sample uniformly in [0, 1]^3 then scale to bounding box
-    Eigen::Matrix<double, 3, Eigen::Dynamic> samples(3, n_points);
-
-    std::mt19937 rng(seed);
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-
-    for (int i = 0; i < n_points; i++) {
-        for (int d = 0; d < 3; d++) {
-            samples(d, i) = mollified_min(d) + dist(rng) * mollified_diag(d);
-        }
-    }
-
-    return samples;
-}
-
-// Subsample a point cloud down to the target number of points, using farthest-point sampling
-Eigen::VectorXi subsample_point_cloud(const Eigen::Matrix<double, 3, Eigen::Dynamic>& positions, int n_points) {
-
-    int n_input = positions.cols();
-
-    if (n_input <= n_points) {
-        Eigen::VectorXi indices(n_input);
-#pragma omp parallel for schedule(static)
-        for (int i = 0; i < n_input; i++) {
-            indices(i) = i;
-        }
-        return indices;
-    }
-
-    // Use farthest point sampling for even distribution
-    Eigen::VectorXi selected_indices(n_points);
-
-    Eigen::VectorXd min_distances = Eigen::VectorXd::Constant(n_input, std::numeric_limits<double>::infinity());
-
-    // Start with a random point
-    int curr_idx = 0;
-    selected_indices(0) = 0;
-
-    // Iteratively select the point farthest from all previously selected points
-    for (int i = 1; i < n_points; ++i) {
-        int last_selected = selected_indices(curr_idx);
-        const Eigen::Vector3d& last_point = positions.col(last_selected);
-
-// Update minimum distances to selected points
-#pragma omp parallel for schedule(static)
-        for (int j = 0; j < n_input; ++j) {
-            double dist = (positions.col(j) - last_point).squaredNorm();
-            min_distances(j) = std::min(min_distances(j), dist);
-        }
-
-        // Find the point with maximum minimum distance
-        int farthest_idx = 0;
-        double max_min_dist = -1.0;
-        for (int j = 0; j < n_input; ++j) {
-            if (min_distances(j) > max_min_dist) {
-                max_min_dist = min_distances(j);
-                farthest_idx = j;
-            }
-        }
-        curr_idx += 1;
-        selected_indices(curr_idx) = farthest_idx;
-        min_distances(farthest_idx) = 0.0; // Mark as selected
-    }
-
-    return selected_indices;
-}
-
 // ============================================================================
 // POINT CLOUD PROCESSING
 // ============================================================================
@@ -1064,6 +913,9 @@ Eigen::VectorXd Mesh3D::evaluate_fast_gwn(const Eigen::Matrix<double, 3, Eigen::
 // ============================================================================
 
 void bind_shape_3d(nb::module_& m) {
+
+    m.def("point_cloud_bounding_box", &point_cloud_bounding_box, "positions"_a,
+          "Computing the bounding box of a point cloud.");
 
     // Mesh3D
     nb::class_<Mesh3D>(m, "Mesh3D")

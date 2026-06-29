@@ -7,6 +7,7 @@
 
 namespace nb = nanobind;
 
+void bind_shape_2d(nb::module_& m);
 void bind_shape_3d(nb::module_& m);
 void bind_torus_distance(nb::module_& m);
 void bind_bvh(nb::module_& m);

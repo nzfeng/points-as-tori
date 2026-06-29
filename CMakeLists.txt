@@ -62,6 +62,7 @@ nanobind_add_module(
     src/cpp/solvers.cpp
     src/cpp/torus_distance.cpp
     src/cpp/shape_3d.cpp
+    src/cpp/shape_2d.cpp
     src/cpp/bvh.cpp
 )
 
