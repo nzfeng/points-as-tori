@@ -45,13 +45,13 @@ To give an idea of precomputation time: Using an NVIDIA RTX 3090, precomputation
 
 ## Demo & shader visualization
 
-**TODO: demo/visualization**
+![shader visualization](media/Demo.png)
 
-First follow the set up instructions in the [above section](#usage-for-signed-distance)
+First follow the set up instructions in the [above section](#usage-for-signed-distance).
 
-For now, I've included a shader visualization that uses `pyglet` and `pyimgui`. They are sort of a pain to set up, and developing an easier-to-use browser-based shader is a TODO.
+For now, I've included a shader visualization that uses `pyglet` and `pyimgui`. These dependences admittedly can be a pain to set up, and developing an easier-to-use browser-based shader is a TODO.
 
-The demo requires additional dependencies that require a version of Python between 3.9 - 3.11. You can do this easily by setting up a virtual environment. You can create a new existing Python virtual environment using `venv` (using Python version 3.11 here as an example) with
+The demo uses additional dependencies that require a version of Python between 3.9 - 3.11. You can change Python versions easily by setting up a virtual environment. For example, you can create a new existing Python virtual environment using `venv` (using Python version 3.11 here as an example) with
 ```
 python3.11 -m venv [venv name]
 ```
@@ -72,22 +72,7 @@ Alternatively, you can use `pyenv`:
 ```
 pyenv install 3.11
 ```
-To create a virtual environment using pyenv,
-```
-pyenv virtualenv 3.11 [venv name]
-```
-To activate:
-```
-pyenv activate [venv name]
-```
-To deactivate:
-```
-pyenv deactivate
-```
-To delete:
-```
-pyenv uninstall [venv name]
-```
+To create a virtual environment using pyenv, use `pyenv virtualenv 3.11 [venv name]`; to activate, use `pyenv activate [venv name]`; to deactivate, use `pyenv deactivate`; to delete, use `pyenv uninstall [venv name]`.
 
 The demo requires additional dependencies that can be pip-installed as follows:
 
@@ -116,7 +101,7 @@ This project additionally contains submodule dependences on [`libigl`](https://l
 
 ## Training
 
-The `training/` directory contains scripts for training the neural network component and generating training data. Pre-generated training data can be found at [this Google drive directory](https://drive.google.com/drive/folders/1hnG-1OCwZ0SWS47Kgmk4chPG825AOfGt?usp=sharing) (total size 6.1 GB).
+The `training/` directory contains scripts for training the neural network component and pre-processing training data. Pre-generated training data can be found at [this Google drive directory](https://drive.google.com/drive/folders/1hnG-1OCwZ0SWS47Kgmk4chPG825AOfGt?usp=sharing) (total size 6.2 GB).
 
 The training scripts use additional Python packages, which can be pip-installed:
 

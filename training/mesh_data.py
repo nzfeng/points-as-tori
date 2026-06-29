@@ -28,6 +28,7 @@ from stl import mesh as stl_mesh
 import tempfile
 
 from pointsastori.shape_3d import *
+from pointsastori.network import *
 
 seed = 57
 
@@ -1031,54 +1032,6 @@ def save_mesh_training_data(
 	print(f'  k_neighbors: {all_neighbors.shape[2]}')
 	print(f'  Max vertices: {all_mesh_vertices.shape[1]}')
 	print(f'  Max faces: {all_mesh_faces.shape[1]}')
-
-
-def load_mesh_training_data(filepath):
-	"""
-	Load training data with mesh information from NPZ file.
-
-	Args:
-		filepath: Path to NPZ file
-
-	Returns:
-		Tuple of NumPy arrays:
-			all_positions: (n_shapes, max_points, 3)
-			all_normals: (n_shapes, max_points, 3)
-			all_areas: (n_shapes, max_points)
-			all_neighbors: (n_shapes, max_points, k_neighbors)
-			all_masks: (n_shapes, max_points)
-			all_mesh_vertices: (n_shapes, max_vertices, 3)
-			all_mesh_faces: (n_shapes, max_faces, 3)
-			all_face_masks: (n_shapes, max_faces)
-	"""
-	data = np.load(filepath)
-
-	all_positions = data['positions']
-	all_normals = data['normals']
-	all_areas = data['areas']
-	all_neighbors = data['neighbors']
-	all_masks = data['masks']
-	all_mesh_vertices = data['mesh_vertices']
-	all_mesh_faces = data['mesh_faces']
-	all_face_masks = data['face_masks']
-
-	print(f'Loaded mesh training data from {filepath}')
-	print(f'  Shapes: {len(all_positions)} shapes')
-	print(f'  Max points per shape: {all_positions.shape[1]}')
-	print(f'  k_neighbors: {all_neighbors.shape[2]}')
-	print(f'  Max vertices: {all_mesh_vertices.shape[1]}')
-	print(f'  Max faces: {all_mesh_faces.shape[1]}')
-
-	return (
-		all_positions,
-		all_normals,
-		all_areas,
-		all_neighbors,
-		all_masks,
-		all_mesh_vertices,
-		all_mesh_faces,
-		all_face_masks,
-	)
 
 
 def generate_scanned_mesh_training_dataset(

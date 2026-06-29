@@ -1,4 +1,5 @@
 media/*.pdf
+training/datasets/
 **/*.pyc
 
 # Build directories
