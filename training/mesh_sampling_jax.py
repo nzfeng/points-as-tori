@@ -6,8 +6,6 @@ import jax.numpy as jnp
 from jax import jit
 from functools import partial
 
-jax.config.update('jax_enable_x64', True)
-
 from pointsastori.shape_3d import *
 from mesh_data import *
 

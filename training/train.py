@@ -6,7 +6,6 @@ from mesh_data import *
 from mesh_sampling_jax import *
 
 
-
 def load_mesh_training_data(filepath):
 	"""
 	Load training data with mesh information from NPZ file.
@@ -370,8 +369,7 @@ def TrainFundamentalFormPredictor(
 	t1 = time.time()
 	print(f'Load data: {t1 - t0:.6f} s')
 
-	# Create combined list of (dataset_idx, shape_idx) for all shapes across all datasets
-	# Note that the below code still assumes multiple datasets... just leave it for now
+	# Create combined list of (dataset_idx, shape_idx) for all shapes (across possibly multiple datasets)
 	all_shape_indices = []
 	for dataset_idx, data in enumerate(all_training_data):
 		n_shapes = len(data[0])  # data[0] is all_positions
