@@ -801,5 +801,6 @@ def train():
 		final_save_filepath='FundamentalFormPredictor_phase4',
 	)
 
+
 if __name__ == '__main__':
 	train()

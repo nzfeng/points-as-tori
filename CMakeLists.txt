@@ -59,7 +59,7 @@ nanobind_add_module(
     pat_bindings
     STABLE_ABI
     NB_STATIC
-    src/cpp/solvers.cpp
+    src/cpp/core.cpp
     src/cpp/torus_distance.cpp
     src/cpp/shape_3d.cpp
     src/cpp/shape_2d.cpp

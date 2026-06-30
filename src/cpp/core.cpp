@@ -1,4 +1,4 @@
-#include "solvers.h"
+#include "core.h"
 
 NB_MODULE(pat_bindings, m) {
     m.doc() = "Points as Tori C++ bindings";

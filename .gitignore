@@ -1,6 +1,7 @@
 media/*.pdf
 training/datasets/
 training/models/
+demo/tori/
 **/*.pyc
 
 # Build directories

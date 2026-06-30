@@ -79,6 +79,7 @@ def orthonormal_basis_with_rotation(n: jnp.ndarray, rotation: float) -> Tuple[jn
 
 	return s_hat, t_hat
 
+
 # ========================================================================
 # (AUTO-DIFFERENTIABLE) DISTANCE FUNCTIONS
 # ========================================================================
@@ -1205,4 +1206,3 @@ class FundamentalFormPredictor(nnx.Module):
 		print(f'  dropout_rate: {saved_data["dropout_rate"]}')
 
 		return loaded_model, saved_data['k_neighbors']
-

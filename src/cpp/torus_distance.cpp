@@ -457,7 +457,7 @@ Eigen::VectorXd TorusDistanceField::evaluate_distance(const Eigen::Matrix<double
 
     t2 = high_resolution_clock::now();
     ms_fp = t2 - t1;
-    std::cerr << "TorusDistanceField::evaluate_distance C++ time (s): " << ms_fp.count() / 1000. << std::endl;
+    // std::cerr << "TorusDistanceField::evaluate_distance C++ time (s): " << ms_fp.count() / 1000. << std::endl;
 
     return distances;
 }

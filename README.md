@@ -32,14 +32,14 @@ at the top level of the repo. Releasing a Python package that one can pip-instal
 The API is implemented in `infer.py`. Usage:
 
 ```
-pat = PointsAsTori(points, normals) # optional argument for tori
+pat = PointsAsTori(points, normals, tori=None, tori_filepath=None) # optional arguments to other tori, or load from file
 
 # `queries` is a (n_queries, 3) NumPy array containing query positions
 distances = pat.signed_distance(queries)   # returns a (n_queries, ) NumPy array
 gradients = pat.sdf_gradient(queries)      # returns a (n_queries, 3) NumPy array
 ```
 
-In more detail: for a given point cloud, tori are first fit to the point cloud using a small pre-trained neural network (included in the repo); tori data needs to be precomputed only once per point cloud, and is stored in the `PointsAsTori` as object. Optionally, a `PointsAsTori` object can be initialized with existing pre-computed tori (for example, from a binary file generated using e.g. `demo/precompute.py`).
+In more detail: for a given point cloud, tori are first fit to the point cloud using a small pre-trained neural network (included in the repo); tori data needs to be precomputed only once per point cloud, and is stored in the `PointsAsTori` as object. Optionally, a `PointsAsTori` object can be initialized with existing pre-computed tori.
 
 To give an idea of precomputation time: Using an NVIDIA RTX 3090, precomputation takes <10 seconds for 100k points, <60s for 1M points, 1-4 minutes for 5-10M points, and >10 minutes for 20M+ points (time scales linearly with point cloud size). A Macbook Pro laptop with an M3 Max chip, 16-core CPU, and 64 GB of RAM, takes about a minute for 50k points, eight minutes for 1M points.
 

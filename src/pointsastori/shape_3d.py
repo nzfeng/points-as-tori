@@ -12,6 +12,7 @@ import pat_bindings as utilsb
 # POINT CLOUDS
 # ========================================================================
 
+
 def point_cloud_bounding_box(positions: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 	"""
 	Args:
@@ -22,6 +23,7 @@ def point_cloud_bounding_box(positions: np.ndarray) -> Tuple[np.ndarray, np.ndar
 	"""
 	bbox_min, bbox_max = utilsb.point_cloud_bounding_box(np.asfortranarray(positions.T))
 	return bbox_min, bbox_max
+
 
 class PointCloud3D:
 	def __init__(self, points: np.ndarray, normals: np.ndarray, colors: np.ndarray = None) -> None:
@@ -443,6 +445,7 @@ class TriangleMesh:
 	def evaluate_fast_gwn(self, q: np.ndarray) -> np.ndarray:
 		return self.bound_object.evaluate_fast_gwn(np.asfortranarray(q.T))
 
+
 def export_PLY_with_colors(
 	vertices: np.ndarray, faces: np.ndarray, colors: np.ndarray, filepath: str, binary: bool = True
 ):
@@ -530,6 +533,7 @@ def export_PLY_with_colors(
 					f.write(f' {idx}')
 				f.write('\n')
 
+
 # ========================================================================
 # SDFs
 # ========================================================================
@@ -552,6 +556,7 @@ SDF_SHAPES = [
 	'trapezoid',
 	'quad',
 ]
+
 
 class SDF2D:
 	def __init__(self, instance=utilsb.Circle2D):
@@ -1219,22 +1224,38 @@ class TorusDistanceField:
 		return neighbors.T, neighbors_subsampled.T
 
 	def evaluate_distance(self, queries: np.ndarray, isovalue: float = 0.0, parallelize: bool = True):
-		if queries.ndim == 1:
+		input_ndim = queries.ndim
+		if input_ndim == 1:
 			queries = queries[None, :]
-		return self.bound_object.evaluate_distance(np.asfortranarray(queries.T), isovalue, parallelize)
+		distances = self.bound_object.evaluate_distance(np.asfortranarray(queries.T), isovalue, parallelize)
+		if input_ndim == 1:
+			return np.squeeze(distances)
+		return distances
 
 	def evaluate_gradient(self, queries: np.ndarray, parallelize: bool = True):
-		return self.bound_object.evaluate_gradient(np.asfortranarray(queries.T), parallelize).T
+		input_ndim = queries.ndim
+		if input_ndim == 1:
+			queries = queries[None, :]
+		gradients = self.bound_object.evaluate_gradient(np.asfortranarray(queries.T), parallelize)
+		if input_ndim == 1:
+			return np.squeeze(gradients.T, axis=0)
+		return gradients.T
 
 	def evaluate_laplacian(self, queries: np.ndarray, parallelize: bool = True):
-		return self.bound_object.evaluate_laplacian(np.asfortranarray(queries.T), parallelize)
+		input_ndim = queries.ndim
+		if input_ndim == 1:
+			queries = queries[None, :]
+		laplacians = self.bound_object.evaluate_laplacian(np.asfortranarray(queries.T), parallelize)
+		if input_ndim == 1:
+			return np.squeeze(laplacians)
+		return laplacians
 
-	def evaluate_distance_gradient_laplacian(self, queries: np.ndarray, isovalue: float = 0.0):
+	def evaluate_distance_gradient_laplacian(self, queries: np.ndarray, isovalue: float = 0.0, parallelize: bool = True):
 		input_ndim = queries.ndim
 		if input_ndim == 1:
 			queries = queries[None, :]
 		distances, gradients, laplacians = self.bound_object.evaluate_distance_gradient_laplacian(
-			np.asfortranarray(queries.T), isovalue
+			np.asfortranarray(queries.T), isovalue, parallelize
 		)
 		if input_ndim == 1:
 			return np.squeeze(distances), np.squeeze(gradients.T, axis=0).T, np.squeeze(laplacians)
@@ -1295,6 +1316,10 @@ class TorusDistanceField:
 
 	def get_point_areas(self):
 		return self.bound_object.get_point_areas()
+
+	def get_tori(self):
+		centers, axes, major_radii, minor_radii = self.bound_object.get_tori()
+		return centers.T, axes.T, major_radii, minor_radii 
 
 	def set_tori(self, centers: np.ndarray, axes: np.ndarray, major_radii: np.ndarray, minor_radii: np.ndarray):
 		self.bound_object.set_tori(np.asfortranarray(centers.T), np.asfortranarray(axes.T), major_radii, minor_radii)

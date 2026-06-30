@@ -440,9 +440,7 @@ class ShaderWindow(pyglet.window.Window):
 				self.key, subkey = jax.random.split(self.key)
 				SDF3D_param = jax.random.uniform(subkey, minval=0.1, maxval=0.3)
 				self.SDF3D = SDF3D(sdf2d=shape, is_extrusion=False, param=SDF3D_param)
-				points, normals = shape.sample_revolution(
-					n_samples, o=SDF3D_param
-				)
+				points, normals = shape.sample_revolution(n_samples, o=SDF3D_param)
 				self.pointcloud = PointCloud3D(points, normals)
 				self.pointcloud_size = self.pointcloud.size
 			else:
@@ -450,15 +448,13 @@ class ShaderWindow(pyglet.window.Window):
 				self.key, subkey = jax.random.split(self.key)
 				SDF3D_param = jax.random.uniform(subkey, minval=0.1, maxval=0.3)
 				self.SDF3D = SDF3D(sdf2d=shape, is_extrusion=True, param=SDF3D_param)
-				points, normals = shape.sample_extrusion(
-					n_samples, h=SDF3D_param
-				)
+				points, normals = shape.sample_extrusion(n_samples, h=SDF3D_param)
 				self.pointcloud = PointCloud3D(points, normals)
 				self.pointcloud_size = self.pointcloud.size
 
 		else:
-
 			import open3d as o3d
+
 			o3d_mesh = o3d.io.read_triangle_mesh(self.shape_filepath)
 			n_faces = len(np.asarray(o3d_mesh.triangles))
 
@@ -1091,9 +1087,15 @@ class ShaderWindow(pyglet.window.Window):
 
 		# Algorithm stuff
 		if imgui.tree_node('Optional parameters', imgui.TREE_NODE_DEFAULT_OPEN):
-			changed, self.lambda_scale = imgui.slider_float('lambda_scale (default is 1)', self.lambda_scale, 0, 100, '%.3f')
+			changed, self.lambda_scale = imgui.slider_float(
+				'lambda_scale (default is 1)', self.lambda_scale, 0, 100, '%.3f'
+			)
 			changed, self.neighborhood_size = imgui.slider_int(
-				'Neighborhood size (-1 => no acceleration)', self.neighborhood_size, -1, self.max_neighborhood_size, '%.3f'
+				'Neighborhood size (-1 => no acceleration)',
+				self.neighborhood_size,
+				-1,
+				self.max_neighborhood_size,
+				'%.3f',
 			)
 			if changed:
 				self.TDF.set_k_evaluation(self.neighborhood_size)
