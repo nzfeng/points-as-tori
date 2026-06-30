@@ -909,7 +909,6 @@ def generate_input_features_with_meshes(all_data, max_points):
 			{
 				'positions': (n_points, 3),
 				'normals': (n_points, 3),
-				'areas': (n_points,)
 				'neighbors': (n_points, k),
 				'vertices': (n_vertices, 3),
 				'faces': (n_faces, 3),
@@ -920,7 +919,6 @@ def generate_input_features_with_meshes(all_data, max_points):
 		Tuple of NumPy arrays:
 			all_positions: (n_shapes, max_points, 3)
 			all_normals: (n_shapes, max_points, 3)
-			all_areas: (n_shapes, max_points, 1)
 			all_neighbors: (n_shapes, max_points, k)
 			all_masks: (n_shapes, max_points)
 			all_mesh_vertices: (n_shapes, max_vertices, 3)
@@ -936,7 +934,6 @@ def generate_input_features_with_meshes(all_data, max_points):
 		# Pad point cloud data
 		positions = np.concatenate([all_data[i]['positions'], np.zeros((pad_size, 3))], axis=0)
 		normals = np.concatenate([all_data[i]['normals'], np.zeros((pad_size, 3))], axis=0)
-		areas = np.concatenate([all_data[i]['areas'], np.zeros((pad_size,))], axis=0)
 
 		# Pad neighbors if |P| < k_neighbors
 		if n_points < k_neighbors:
@@ -958,7 +955,6 @@ def generate_input_features_with_meshes(all_data, max_points):
 			{
 				'positions': positions,
 				'normals': normals,
-				'areas': areas,
 				'neighbors': neighbors,
 				'mask': mask,
 				'vertices': vertices_padded,
@@ -970,7 +966,6 @@ def generate_input_features_with_meshes(all_data, max_points):
 	# Stack into arrays
 	all_positions = np.stack([d['positions'] for d in all_padded_data])
 	all_normals = np.stack([d['normals'] for d in all_padded_data])
-	all_areas = np.stack([d['areas'] for d in all_padded_data])
 	all_neighbors = np.stack([d['neighbors'] for d in all_padded_data])
 	all_masks = np.stack([d['mask'] for d in all_padded_data])
 	all_mesh_vertices = np.stack([d['vertices'] for d in all_padded_data])
@@ -980,7 +975,6 @@ def generate_input_features_with_meshes(all_data, max_points):
 	return (
 		all_positions,
 		all_normals,
-		all_areas,
 		all_neighbors,
 		all_masks,
 		all_mesh_vertices,
@@ -993,7 +987,6 @@ def save_mesh_training_data(
 	filepath: str,
 	all_positions,
 	all_normals,
-	all_areas,
 	all_neighbors,
 	all_masks,
 	all_mesh_vertices,
@@ -1007,7 +1000,6 @@ def save_mesh_training_data(
 		filepath: Path to save file (should end in .npz)
 		all_positions: (n_shapes, max_points, 3)
 		all_normals: (n_shapes, max_points, 3)
-		all_areas: (n_shapes, max_points, 1)
 		all_neighbors: (n_shapes, max_points, k)
 		all_masks: (n_shapes, max_points)
 		all_mesh_vertices: (n_shapes, max_vertices, 3)
@@ -1018,7 +1010,6 @@ def save_mesh_training_data(
 		filepath,
 		positions=np.array(all_positions),
 		normals=np.array(all_normals),
-		areas=np.array(all_areas),
 		neighbors=np.array(all_neighbors, dtype=np.int32),
 		masks=np.array(all_masks, dtype=np.bool_),
 		mesh_vertices=np.array(all_mesh_vertices),
@@ -1044,7 +1035,6 @@ def generate_scanned_mesh_training_dataset(
 	{
 		'positions': (n_shapes, max_points, 3),
 		'normals': (n_shapes, max_points, 3),
-		'areas': (n_shapes, max_points, 1)
 		'neighbors': (n_shapes, max_points, k),
 		'masks': (n_shapes, max_points),
 
@@ -1275,7 +1265,6 @@ def generate_scanned_mesh_training_dataset(
 			(
 				all_positions,
 				all_normals,
-				all_areas,
 				all_neighbors,
 				all_masks,
 				all_mesh_vertices,
@@ -1294,7 +1283,6 @@ def generate_scanned_mesh_training_dataset(
 				filepath,
 				all_positions,
 				all_normals,
-				all_areas,
 				all_neighbors,
 				all_masks,
 				all_mesh_vertices,
@@ -1324,7 +1312,6 @@ def generate_all_training_datasets(n_views: int, mode: int):
 	{
 		'positions': (n_shapes, max_points, 3),
 		'normals': (n_shapes, max_points, 3),
-		'areas': (n_shapes, max_points, 1),
 		'neighbors': (n_shapes, max_points, k),
 		'masks': (n_shapes, max_points),
 
@@ -1428,7 +1415,6 @@ def generate_pretraining_dataset():
 	(
 		all_positions,
 		all_normals,
-		all_areas,
 		all_neighbors,
 		all_masks,
 		all_mesh_vertices,
@@ -1442,7 +1428,6 @@ def generate_pretraining_dataset():
 		filepath,
 		all_positions,
 		all_normals,
-		all_areas,
 		all_neighbors,
 		all_masks,
 		all_mesh_vertices,
