@@ -1250,7 +1250,9 @@ class TorusDistanceField:
 			return np.squeeze(laplacians)
 		return laplacians
 
-	def evaluate_distance_gradient_laplacian(self, queries: np.ndarray, isovalue: float = 0.0, parallelize: bool = True):
+	def evaluate_distance_gradient_laplacian(
+		self, queries: np.ndarray, isovalue: float = 0.0, parallelize: bool = True
+	):
 		input_ndim = queries.ndim
 		if input_ndim == 1:
 			queries = queries[None, :]
@@ -1319,7 +1321,7 @@ class TorusDistanceField:
 
 	def get_tori(self):
 		centers, axes, major_radii, minor_radii = self.bound_object.get_tori()
-		return centers.T, axes.T, major_radii, minor_radii 
+		return centers.T, axes.T, major_radii, minor_radii
 
 	def set_tori(self, centers: np.ndarray, axes: np.ndarray, major_radii: np.ndarray, minor_radii: np.ndarray):
 		self.bound_object.set_tori(np.asfortranarray(centers.T), np.asfortranarray(axes.T), major_radii, minor_radii)

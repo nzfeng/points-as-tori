@@ -11,6 +11,7 @@ from .network import FundamentalFormPredictor
 DEFAULT_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'FundamentalFormPredictor.pkl')
 K_NEIGHBORS_ACCELERATION = 32
 
+
 class PointsAsTori:
 	"""
 	Object that stores an oriented point cloud and its (pre-)fitted tori.
@@ -62,7 +63,6 @@ class PointsAsTori:
 		else:
 			self._tdf.set_tori(tori['centers'], tori['axes'], tori['major_radii'], tori['minor_radii'])
 
-
 	def signed_distance(self, queries: np.ndarray, accelerate: bool = True) -> np.ndarray:
 		"""
 		Evaluate signed distance at the given query points.
@@ -104,7 +104,7 @@ class PointsAsTori:
 		model, k_neighbors = FundamentalFormPredictor.load_saved_model(model_path)
 		return model, k_neighbors
 
-	def save_tori(self, filepath: str = "tori/tori.pkl") -> None:
+	def save_tori(self, filepath: str = 'tori/tori.pkl') -> None:
 		"""
 		Save tori as binary file.
 
@@ -120,7 +120,7 @@ class PointsAsTori:
 		with open(filepath, 'wb') as f:
 			pickle.dump(tori, f)
 
-	def _load_tori(self, filepath: str = "tori/tori.pkl") -> dict:
+	def _load_tori(self, filepath: str = 'tori/tori.pkl') -> dict:
 		"""
 		Load tori from a binary file saved by save_tori().
 
@@ -131,7 +131,7 @@ class PointsAsTori:
 			dictionary with keys 'centers', 'axes', 'major_radii', 'minor_radii'
 		"""
 		with open(filepath, 'rb') as f:
-			tori = pickle.load(f) # tuple
+			tori = pickle.load(f)  # tuple
 			return {'centers': tori[0], 'axes': tori[1], 'major_radii': tori[2], 'minor_radii': tori[3]}
 
 
