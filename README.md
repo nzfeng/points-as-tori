@@ -10,7 +10,7 @@ Paper PDF (28.4mb): [link](https://nzfeng.github.io/research/PointsAsTori/Points
 
 Project page with paper, videos, and blog-style explanations: [link](https://nzfeng.github.io/research/PointsAsTori/index.html)
 
-This is a preliminary release. Have a feature or improvement in mind that you'd like to see? Parts of the repository buggy or poorly explained? Leave an issue on GitHub!
+If you have a feature or improvement in mind, or if parts of the repository buggy or poorly explained, leave an issue on GitHub.
 
 ## Usage for signed distance
 
@@ -132,7 +132,7 @@ Areas of improvement mostly center around neural network performance and robustn
 
 ## Citation
 
-If this code contributes to academic work, please cite as:
+If this code contributes to academic work, cite it as:
 ```bibtex
 @article{Feng:2026:PAT,
     author = {Feng, Nicole and Gkioulekas, Ioannis and Crane, Keenan},
@@ -143,7 +143,7 @@ If this code contributes to academic work, please cite as:
     address = {New York, NY, USA},
     volume = {45},
     number = {4},
-    issn = {XXXX-XXXX},
+    issn = {0730-0301},
     url = {https://doi.org/10.1145/3811385},
     doi = {10.1145/3811385},
     journal = {ACM Trans. Graph.},
