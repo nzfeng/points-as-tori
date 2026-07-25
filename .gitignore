@@ -7,6 +7,8 @@ demo/tori/
 # Build directories
 export/
 build/
+.pixi/
+.testmondata
 **/build/
 **/*.ppm
 **/site_build/

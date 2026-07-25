@@ -2,10 +2,6 @@
 build-backend = "scikit_build_core.build"
 requires = ["scikit-build-core", "nanobind"]
 
-[cmake.define]
-logging.level = "INFO"
-sdist.exclude = [".github", "*.png", "test", ".mypy_cache", ".pre-commit-config.yaml", "*_cache", "CONTRIBUTING.md", ".gitignore", ".gitmodules"]
-
 [project]
 authors = [
   {name = "Nicole Feng", email = "nicolefeng7@gmail.com"}
@@ -17,8 +13,9 @@ classifiers = [
 ]
 dependencies = [
   "numpy",
+  "scipy",
   "jax==0.8.2",
-  "jaxlib",
+  "jaxlib==0.8.2",
   "flax==0.12.2",
   "optax",
   "plyfile",
@@ -38,6 +35,52 @@ Documentation = "https://github.com/nzfeng/points-as-tori"
 Homepage = "https://github.com/nzfeng/points-as-tori"
 Issues = "https://github.com/nzfeng/points-as-tori/issues"
 Repository = "https://github.com/nzfeng/points-as-tori"
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[tool.pixi.system-requirements]
+macos = "15.0"
+
+[tool.pixi.pypi-dependencies]
+pointsastori = { path = ".", editable = true }
+pytest-testmon = "==2.2.0"
+
+[tool.pixi.dependencies]
+numpy = ">=2,<3"
+scipy = ">=1.14,<2"
+jax = "==0.8.2"
+jaxlib = "==0.8.2"
+flax = "==0.12.2"
+optax = ">=0.2,<1"
+plyfile = ">=1,<2"
+cmake = ">=3.30,<4"
+ninja = ">=1.12,<2"
+cgal-cpp = "6.*"
+gmp = ">=6.3,<7"
+mpfr = ">=4.2,<5"
+llvm-openmp = "22.*"
+libopenblas = { version = ">=0.3.33,<1", build = "*openmp*" }
+scikit-build-core = ">=1,<2"
+nanobind = ">=2.13,<3"
+python-build = ">=1.2,<2"
+pytest = ">=8,<10"
+pytest-xdist = ">=3,<4"
+ruff = ">=0.12,<1"
+
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
+
+[tool.pixi.environments]
+default = { features = ["py312"], solve-group = "py312" }
+
+[tool.pixi.tasks]
+test = { cmd = "pytest -n auto --testmon", description = "Affected contract tests in parallel" }
+lint = { cmd = "ruff check .", description = "Ruff lint" }
+format-check = { cmd = "ruff format --check .", description = "Ruff format gate" }
+build = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels", description = "Build release wheel" }
+check = { depends-on = ["lint", "format-check", "test", "build"], description = "Lint, format, test, build" }
 
 [tool.cibuildwheel]
 # Run pytest to ensure that the package was correctly built
@@ -69,7 +112,10 @@ ignore = ["F403", "F405", "E402", "F841"]
 [tool.scikit-build]
 build-dir = "build/{wheel_tag}"
 minimum-version = "0.10"
+strict-config = false
 build.verbose = true
 cmake.build-type = "Release"
 cmake.version = "CMakeLists.txt"
+logging.level = "INFO"
+sdist.exclude = [".github", "*.png", "test", ".mypy_cache", ".pre-commit-config.yaml", "*_cache", "CONTRIBUTING.md", ".gitignore", ".gitmodules"]
 wheel.packages = ["src/pointsastori"]
