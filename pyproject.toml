@@ -71,6 +71,7 @@ python = "3.12.*"
 
 [tool.pixi.feature.demo.dependencies]
 python = "3.11.*"
+open3d = ">=0.19,<0.20"
 pyvista = ">=0.48,<1"
 psutil = ">=7,<8"
 
