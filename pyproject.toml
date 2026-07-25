@@ -2,10 +2,6 @@
 build-backend = "scikit_build_core.build"
 requires = ["scikit-build-core", "nanobind"]
 
-[cmake.define]
-logging.level = "INFO"
-sdist.exclude = [".github", "*.png", "test", ".mypy_cache", ".pre-commit-config.yaml", "*_cache", "CONTRIBUTING.md", ".gitignore", ".gitmodules"]
-
 [project]
 authors = [
   {name = "Nicole Feng", email = "nicolefeng7@gmail.com"}
@@ -17,8 +13,9 @@ classifiers = [
 ]
 dependencies = [
   "numpy",
+  "scipy",
   "jax==0.8.2",
-  "jaxlib",
+  "jaxlib==0.8.2",
   "flax==0.12.2",
   "optax",
   "plyfile",
@@ -39,6 +36,84 @@ Homepage = "https://github.com/nzfeng/points-as-tori"
 Issues = "https://github.com/nzfeng/points-as-tori/issues"
 Repository = "https://github.com/nzfeng/points-as-tori"
 
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64"]
+
+[tool.pixi.system-requirements]
+macos = "15.0"
+
+[tool.pixi.pypi-dependencies]
+pointsastori = { path = ".", editable = true }
+
+[tool.pixi.dependencies]
+numpy = ">=2,<3"
+scipy = ">=1.14,<2"
+jax = "==0.8.2"
+jaxlib = "==0.8.2"
+flax = "==0.12.2"
+optax = ">=0.2,<1"
+plyfile = ">=1,<2"
+cmake = ">=3.30,<4"
+ninja = ">=1.12,<2"
+cgal-cpp = "6.*"
+gmp = ">=6.3,<7"
+mpfr = ">=4.2,<5"
+scikit-build-core = ">=1,<2"
+nanobind = ">=2.13,<3"
+python-build = ">=1.2,<2"
+ruff = ">=0.12,<1"
+
+[tool.pixi.target.osx-arm64.dependencies]
+llvm-openmp = "22.*"
+libopenblas = { version = ">=0.3.33,<1", build = "*openmp*" }
+
+[tool.pixi.target.linux-64.dependencies]
+_openmp_mutex = { version = "4.5.*", build = "*_gnu" }
+libgomp = ">=14,<16"
+libopenblas = { version = ">=0.3.33,<1", build = "*pthreads*" }
+
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
+
+[tool.pixi.feature.demo.dependencies]
+python = "3.11.*"
+open3d = ">=0.19,<0.20"
+pyvista = ">=0.48,<1"
+psutil = ">=7,<8"
+
+[tool.pixi.feature.demo.pypi-dependencies]
+pyglet = ">=2,<3"
+imgui = { version = ">=2,<3", extras = ["pyglet"] }
+
+[tool.pixi.feature.demo.tasks]
+demo = { cmd = "python demo_3d.py", cwd = "demo", description = "Launch shader demo" }
+
+[tool.pixi.feature.training.dependencies]
+numpy-stl = ">=3,<4"
+matplotlib-base = ">=3.10,<4"
+py7zr = ">=1,<2"
+pyvista = ">=0.48,<1"
+trimesh = ">=4,<5"
+pyfqmr = ">=0.5,<1"
+noise = ">=1.2,<2"
+
+[tool.pixi.feature.training.pypi-dependencies]
+thingi10k = "*"
+
+[tool.pixi.environments]
+default = { features = ["py312"], solve-group = "py312" }
+demo = { features = ["demo"], solve-group = "demo" }
+training = { features = ["py312", "training"], solve-group = "py312" }
+
+[tool.pixi.tasks]
+lint = { cmd = "ruff check demo scripts", description = "Ruff lint maintained migration surfaces" }
+format-check = { cmd = "ruff format --check demo scripts", description = "Ruff format maintained migration surfaces" }
+_build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels" }
+verify-wheel = { cmd = "python scripts/verify_wheel.py", description = "Inspect wheel contents, OpenMP linkage, SHA-256" }
+build = { depends-on = ["_build-wheel", "verify-wheel"], description = "Build and verify release wheel" }
+check = { depends-on = ["lint", "format-check", "build"], description = "Lint, format, build" }
+
 [tool.cibuildwheel]
 # Run pytest to ensure that the package was correctly built
 test-command = "pytest {project}/test"
@@ -54,7 +129,7 @@ plugins = ["numpy.typing.mypy_plugin"]
 strict = false
 
 [tool.ruff]
-exclude = [".deps", ".build", ".test"]
+exclude = [".pixi", "build", "deps", "export"]
 indent-width = 4
 line-length = 120
 
@@ -67,9 +142,12 @@ quote-style = "single"
 ignore = ["F403", "F405", "E402", "F841"]
 
 [tool.scikit-build]
-build-dir = "build/{wheel_tag}"
+build-dir = "build/pixi/{wheel_tag}"
 minimum-version = "0.10"
+strict-config = false
 build.verbose = true
 cmake.build-type = "Release"
 cmake.version = "CMakeLists.txt"
+logging.level = "INFO"
+sdist.exclude = [".github", "*.png", "test", ".mypy_cache", ".pre-commit-config.yaml", "*_cache", "CONTRIBUTING.md", ".gitignore", ".gitmodules"]
 wheel.packages = ["src/pointsastori"]
