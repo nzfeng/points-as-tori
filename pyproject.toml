@@ -109,7 +109,9 @@ training = { features = ["py312", "training"], solve-group = "py312" }
 test = { cmd = "pytest -n auto --testmon", description = "Affected contract tests in parallel" }
 lint = { cmd = "ruff check .", description = "Ruff lint" }
 format-check = { cmd = "ruff format --check .", description = "Ruff format gate" }
-build = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels", description = "Build release wheel" }
+_build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels" }
+verify-wheel = { cmd = "python scripts/verify_wheel.py", description = "Inspect wheel contents, OpenMP linkage, SHA-256" }
+build = { depends-on = ["_build-wheel", "verify-wheel"], description = "Build and verify release wheel" }
 check = { depends-on = ["lint", "format-check", "test", "build"], description = "Lint, format, test, build" }
 
 [tool.cibuildwheel]
@@ -126,6 +128,9 @@ plugins = ["numpy.typing.mypy_plugin"]
 # disable_error_code = ['assignment', 'index', 'misc']
 strict = false
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.ruff]
 exclude = [".deps", ".build", ".test"]
 indent-width = 4
@@ -140,7 +145,7 @@ quote-style = "single"
 ignore = ["F403", "F405", "E402", "F841"]
 
 [tool.scikit-build]
-build-dir = "build/{wheel_tag}"
+build-dir = "build/pixi/{wheel_tag}"
 minimum-version = "0.10"
 strict-config = false
 build.verbose = true

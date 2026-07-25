@@ -52,3 +52,7 @@ def test_cmake_requires_pixi_openmp_without_machine_paths() -> None:
 	assert '/opt/homebrew' not in cmake
 	assert '/usr/local' not in cmake
 	assert 'OpenMP::OpenMP_CXX' in cmake
+	assert '$ENV{CONDA_PREFIX}' in cmake
+	assert 'GMP_LIBRARY_RELEASE' in cmake
+	assert 'GMPXX_LIBRARIES' in cmake
+	assert 'MPFR_LIBRARIES' in cmake
