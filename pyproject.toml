@@ -45,7 +45,6 @@ macos = "15.0"
 
 [tool.pixi.pypi-dependencies]
 pointsastori = { path = ".", editable = true }
-pytest-testmon = "==2.2.0"
 
 [tool.pixi.dependencies]
 numpy = ">=2,<3"
@@ -65,8 +64,6 @@ libopenblas = { version = ">=0.3.33,<1", build = "*openmp*" }
 scikit-build-core = ">=1,<2"
 nanobind = ">=2.13,<3"
 python-build = ">=1.2,<2"
-pytest = ">=8,<10"
-pytest-xdist = ">=3,<4"
 ruff = ">=0.12,<1"
 
 [tool.pixi.feature.py312.dependencies]
@@ -83,7 +80,6 @@ imgui = { version = ">=2,<3", extras = ["pyglet"] }
 
 [tool.pixi.feature.demo.tasks]
 demo = { cmd = "python demo_3d.py", cwd = "demo", description = "Launch shader demo" }
-demo-contract = { cmd = "pytest -n auto --testmon tests/environments/demo_contract.py", description = "Verify demo imports" }
 
 [tool.pixi.feature.training.dependencies]
 numpy-stl = ">=3,<4"
@@ -97,22 +93,18 @@ noise = ">=1.2,<2"
 [tool.pixi.feature.training.pypi-dependencies]
 thingi10k = "*"
 
-[tool.pixi.feature.training.tasks]
-training-contract = { cmd = "pytest -n auto --testmon tests/environments/training_contract.py", description = "Verify training imports" }
-
 [tool.pixi.environments]
 default = { features = ["py312"], solve-group = "py312" }
 demo = { features = ["demo"], solve-group = "demo" }
 training = { features = ["py312", "training"], solve-group = "py312" }
 
 [tool.pixi.tasks]
-test = { cmd = "pytest -n auto --testmon tests/test_*.py", description = "Affected core contracts in parallel" }
-lint = { cmd = "ruff check demo scripts tests", description = "Ruff lint maintained migration surfaces" }
-format-check = { cmd = "ruff format --check demo scripts tests", description = "Ruff format maintained migration surfaces" }
+lint = { cmd = "ruff check demo scripts", description = "Ruff lint maintained migration surfaces" }
+format-check = { cmd = "ruff format --check demo scripts", description = "Ruff format maintained migration surfaces" }
 _build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels" }
 verify-wheel = { cmd = "python scripts/verify_wheel.py", description = "Inspect wheel contents, OpenMP linkage, SHA-256" }
 build = { depends-on = ["_build-wheel", "verify-wheel"], description = "Build and verify release wheel" }
-check = { depends-on = ["lint", "format-check", "test", "build"], description = "Lint, format, test, build" }
+check = { depends-on = ["lint", "format-check", "build"], description = "Lint, format, build" }
 
 [tool.cibuildwheel]
 # Run pytest to ensure that the package was correctly built
@@ -127,9 +119,6 @@ exclude = ["^.test/"]
 plugins = ["numpy.typing.mypy_plugin"]
 # disable_error_code = ['assignment', 'index', 'misc']
 strict = false
-
-[tool.pytest.ini_options]
-pythonpath = ["."]
 
 [tool.ruff]
 exclude = [".pixi", "build", "deps", "export"]

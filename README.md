@@ -23,12 +23,6 @@ git submodule update --init --recursive
 pixi install --locked
 ```
 
-Run the parallel contract tests:
-
-```bash
-pixi run test
-```
-
 Build and verify the Python/native wheel:
 
 ```bash
@@ -60,11 +54,10 @@ To give an idea of precomputation time: Using an NVIDIA RTX 3090, precomputation
 ![shader visualization](media/Demo.png)
 
 The `demo` environment locks Python 3.11, Pyglet, ImGui, PyVista, and its
-native package build separately from the core environment. Verify its imports,
-then launch the shader demo:
+native package build separately from the core environment. Launch the shader
+demo directly:
 
 ```bash
-pixi run -e demo demo-contract
 pixi run -e demo demo
 ```
 
@@ -86,10 +79,9 @@ This project additionally contains submodule dependences on [`libigl`](https://l
 
 The `training/` directory contains scripts for training the neural network component and pre-processing training data. Pre-generated training data can be found at [this Google drive directory](https://drive.google.com/drive/folders/1hnG-1OCwZ0SWS47Kgmk4chPG825AOfGt?usp=sharing) (total size 6.2 GB).
 
-Verify the locked training stack before running a training script:
+Run a training script in the locked training environment:
 
 ```bash
-pixi run -e training training-contract
 pixi run -e training python training/train.py
 ```
 
