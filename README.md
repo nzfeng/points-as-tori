@@ -12,28 +12,40 @@ Project page with paper, videos, and blog-style explanations: [link](https://nzf
 
 If you have a feature or improvement in mind, or if parts of the repository buggy or poorly explained, leave an issue on GitHub.
 
-## Usage for signed distance
+## Build from source
 
-If building this project from source, it is likely that you may have to first initialize git submodules after cloning the repository, using 
+The committed Pixi lock currently supports Apple Silicon Macs on macOS 15:
+`osx-arm64`. [Install Pixi](https://pixi.prefix.dev/latest/installation/), then
+initialize the native dependencies and install the exact locked environment:
 
-```
+```bash
 git submodule update --init --recursive
+pixi install --locked
 ```
 
-This project relies on C++ extensions. Build the Python package using 
+Run the parallel contract tests:
 
+```bash
+pixi run test
 ```
-pip install .
+
+Build and verify the Python/native wheel:
+
+```bash
+pixi run build
 ```
 
-at the top level of the repo. Releasing a Python package that one can pip-install from PyPI is a TODO.
+The build task checks the wheel contents, inspects its native linkage, and
+prints the wheel's SHA-256 digest. Pixi supplies Python 3.12, CGAL, GMP, MPFR,
+LLVM OpenMP, the OpenMP-backed BLAS implementation, build tools, and Python
+packages from `pixi.lock`.
 
+## Usage for signed distance
 
 The API is implemented in `infer.py`. Usage:
 
-```
-pat = PointsAsTori(points, normals, tori=None, tori_filepath=None) # optional arguments to other tori, or load from file
-
+```python
+pat = PointsAsTori(points, normals, tori=None, tori_filepath=None)  # optionally provide or load existing tori
 # `queries` is a (n_queries, 3) NumPy array containing query positions
 distances = pat.signed_distance(queries)   # returns a (n_queries, ) NumPy array
 gradients = pat.sdf_gradient(queries)      # returns a (n_queries, 3) NumPy array
@@ -47,46 +59,17 @@ To give an idea of precomputation time: Using an NVIDIA RTX 3090, precomputation
 
 ![shader visualization](media/Demo.png)
 
-First follow the set up instructions in the [above section](#usage-for-signed-distance).
+The `demo` environment locks Python 3.11, Pyglet, ImGui, PyVista, and its
+native package build separately from the core environment. Verify its imports,
+then launch the shader demo:
 
-For now, I've included a shader visualization that uses `pyglet` and `pyimgui`. These dependences admittedly can be a pain to set up, and developing an easier-to-use browser-based shader is a TODO.
-
-The demo uses additional dependencies that require a version of Python between 3.9 - 3.11. You can change Python versions easily by setting up a virtual environment. For example, you can create a new existing Python virtual environment using `venv` (using Python version 3.11 here as an example) with
-```
-python3.11 -m venv [venv name]
-```
-and activate an existing Python virtual environment using
-```
-source [venv name]/bin/activate
-```
-To deactivate an activated Python virtual environment, use
-```
-deactivate
-```
-And to delete a Python virtual environment, use
-```
-rm -r [venv name]
-```
-
-Alternatively, you can use `pyenv`:
-```
-pyenv install 3.11
-```
-To create a virtual environment using pyenv, use `pyenv virtualenv 3.11 [venv name]`; to activate, use `pyenv activate [venv name]`; to deactivate, use `pyenv deactivate`; to delete, use `pyenv uninstall [venv name]`.
-
-The demo requires additional dependencies that can be pip-installed as follows:
-
-```
-pip install pyglet "imgui[pyglet] pyvista"
-```
-
-Run the demo from the `/demo` directory using 
-
-```
-python demo_3d.py
+```bash
+pixi run -e demo demo-contract
+pixi run -e demo demo
 ```
 
 GUI interactions:
+
 * mouse scroll: zoom in/out
 * mouse click-and-drag: pan
 * left-right mouse motion: move cutplane along axis
@@ -95,7 +78,7 @@ GUI interactions:
 
 ## Dependencies
 
-Python bindings are implemented using [`nanobind`](https://github.com/wjakob/nanobind). [`nanoflann`](https://github.com/jlblancoc/nanoflann) is used to build KD-trees to accelerate signed distance queries. The C++ functions use OpenMP for parallelization. All dependencies are included as submodules.
+Python bindings are implemented using [`nanobind`](https://github.com/wjakob/nanobind). [`nanoflann`](https://github.com/jlblancoc/nanoflann) is used to build KD-trees to accelerate signed distance queries. The C++ functions use OpenMP for parallelization. Native and Python packages are resolved by Pixi; source dependencies are initialized as Git submodules.
 
 This project additionally contains submodule dependences on [`libigl`](https://libigl.github.io/) and [`fcpw`](https://github.com/rohan-sawhney/fcpw) for their routines for winding numbers and exact distance, respectively. These are not strictly required, but they may be interesting to users as a point of comparison.
 
@@ -103,10 +86,11 @@ This project additionally contains submodule dependences on [`libigl`](https://l
 
 The `training/` directory contains scripts for training the neural network component and pre-processing training data. Pre-generated training data can be found at [this Google drive directory](https://drive.google.com/drive/folders/1hnG-1OCwZ0SWS47Kgmk4chPG825AOfGt?usp=sharing) (total size 6.2 GB).
 
-The training scripts use additional Python packages, which can be pip-installed:
+Verify the locked training stack before running a training script:
 
-```
-pip install scipy numpy-stl matplotlib thingi10k py7zr pyvista trimesh pyfqmr noise
+```bash
+pixi run -e training training-contract
+pixi run -e training python training/train.py
 ```
 
 ## Areas of improvement
