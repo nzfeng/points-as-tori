@@ -51,6 +51,14 @@ def linkage_command(target: Path) -> tuple[str, ...]:
 	raise WheelContractError(f'unsupported wheel verification platform: {sys.platform}')
 
 
+def expected_openmp_runtime() -> str:
+	if sys.platform == 'darwin':
+		return 'libomp'
+	if sys.platform.startswith('linux'):
+		return 'libgomp'
+	raise WheelContractError(f'unsupported wheel verification platform: {sys.platform}')
+
+
 def verify_linkage(wheel: Path, native_member: str) -> str:
 	with TemporaryDirectory() as directory:
 		target = Path(directory) / Path(native_member).name
@@ -65,7 +73,7 @@ def verify_linkage(wheel: Path, native_member: str) -> str:
 	linkage = result.stdout
 	if '/opt/homebrew' in linkage or '/usr/local' in linkage:
 		raise WheelContractError(f'wheel leaks machine-local linkage:\n{linkage}')
-	if 'libomp' not in linkage:
+	if expected_openmp_runtime() not in linkage:
 		raise WheelContractError(f'wheel lacks OpenMP linkage:\n{linkage}')
 	return linkage
 

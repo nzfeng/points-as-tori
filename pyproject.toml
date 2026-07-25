@@ -59,15 +59,19 @@ ninja = ">=1.12,<2"
 cgal-cpp = "6.*"
 gmp = ">=6.3,<7"
 mpfr = ">=4.2,<5"
-llvm-openmp = "22.*"
-libopenblas = { version = ">=0.3.33,<1", build = "*openmp*" }
 scikit-build-core = ">=1,<2"
 nanobind = ">=2.13,<3"
 python-build = ">=1.2,<2"
 ruff = ">=0.12,<1"
 
+[tool.pixi.target.osx-arm64.dependencies]
+llvm-openmp = "22.*"
+libopenblas = { version = ">=0.3.33,<1", build = "*openmp*" }
+
 [tool.pixi.target.linux-64.dependencies]
-clangxx = "22.*"
+_openmp_mutex = { version = "4.5.*", build = "*_gnu" }
+libgomp = ">=14,<16"
+libopenblas = { version = ">=0.3.33,<1", build = "*pthreads*" }
 
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"
@@ -105,7 +109,7 @@ training = { features = ["py312", "training"], solve-group = "py312" }
 [tool.pixi.tasks]
 lint = { cmd = "ruff check demo scripts", description = "Ruff lint maintained migration surfaces" }
 format-check = { cmd = "ruff format --check demo scripts", description = "Ruff format maintained migration surfaces" }
-_build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels", env = { CC = "clang", CXX = "clang++" } }
+_build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels" }
 verify-wheel = { cmd = "python scripts/verify_wheel.py", description = "Inspect wheel contents, OpenMP linkage, SHA-256" }
 build = { depends-on = ["_build-wheel", "verify-wheel"], description = "Build and verify release wheel" }
 check = { depends-on = ["lint", "format-check", "build"], description = "Lint, format, build" }
