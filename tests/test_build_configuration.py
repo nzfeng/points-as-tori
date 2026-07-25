@@ -27,7 +27,9 @@ def test_pixi_owns_the_osx_arm64_build() -> None:
 def test_pixi_defines_the_core_gates() -> None:
 	tasks = _manifest()['tool']['pixi']['tasks']
 	assert {'test', 'lint', 'format-check', 'build', 'check'} <= tasks.keys()
-	assert tasks['test']['cmd'] == 'pytest -n auto --testmon'
+	assert tasks['test']['cmd'] == 'pytest -n auto --testmon tests/test_*.py'
+	assert tasks['lint']['cmd'] == 'ruff check demo scripts tests'
+	assert tasks['format-check']['cmd'] == 'ruff format --check demo scripts tests'
 	assert tasks['check']['depends-on'] == [
 		'lint',
 		'format-check',

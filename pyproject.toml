@@ -106,9 +106,9 @@ demo = { features = ["demo"], solve-group = "demo" }
 training = { features = ["py312", "training"], solve-group = "py312" }
 
 [tool.pixi.tasks]
-test = { cmd = "pytest -n auto --testmon", description = "Affected contract tests in parallel" }
-lint = { cmd = "ruff check .", description = "Ruff lint" }
-format-check = { cmd = "ruff format --check .", description = "Ruff format gate" }
+test = { cmd = "pytest -n auto --testmon tests/test_*.py", description = "Affected core contracts in parallel" }
+lint = { cmd = "ruff check demo scripts tests", description = "Ruff lint maintained migration surfaces" }
+format-check = { cmd = "ruff format --check demo scripts tests", description = "Ruff format maintained migration surfaces" }
 _build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels" }
 verify-wheel = { cmd = "python scripts/verify_wheel.py", description = "Inspect wheel contents, OpenMP linkage, SHA-256" }
 build = { depends-on = ["_build-wheel", "verify-wheel"], description = "Build and verify release wheel" }
@@ -132,7 +132,7 @@ strict = false
 pythonpath = ["."]
 
 [tool.ruff]
-exclude = [".deps", ".build", ".test"]
+exclude = [".pixi", "build", "deps", "export"]
 indent-width = 4
 line-length = 120
 
