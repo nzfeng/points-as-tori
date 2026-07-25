@@ -43,13 +43,21 @@ def sha256_file(path: Path) -> str:
 	return digest.hexdigest()
 
 
+def linkage_command(target: Path) -> tuple[str, ...]:
+	if sys.platform == 'darwin':
+		return 'otool', '-L', str(target)
+	if sys.platform.startswith('linux'):
+		return 'ldd', str(target)
+	raise WheelContractError(f'unsupported wheel verification platform: {sys.platform}')
+
+
 def verify_linkage(wheel: Path, native_member: str) -> str:
 	with TemporaryDirectory() as directory:
 		target = Path(directory) / Path(native_member).name
 		with ZipFile(wheel) as archive:
 			target.write_bytes(archive.read(native_member))
 		result = subprocess.run(
-			['otool', '-L', target],
+			linkage_command(target),
 			check=True,
 			capture_output=True,
 			text=True,
