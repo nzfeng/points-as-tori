@@ -66,6 +66,9 @@ nanobind = ">=2.13,<3"
 python-build = ">=1.2,<2"
 ruff = ">=0.12,<1"
 
+[tool.pixi.target.linux-64.dependencies]
+clangxx = "22.*"
+
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"
 
@@ -102,7 +105,7 @@ training = { features = ["py312", "training"], solve-group = "py312" }
 [tool.pixi.tasks]
 lint = { cmd = "ruff check demo scripts", description = "Ruff lint maintained migration surfaces" }
 format-check = { cmd = "ruff format --check demo scripts", description = "Ruff format maintained migration surfaces" }
-_build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels" }
+_build-wheel = { cmd = "python -m build --wheel --no-isolation --outdir export/wheels", env = { CC = "clang", CXX = "clang++" } }
 verify-wheel = { cmd = "python scripts/verify_wheel.py", description = "Inspect wheel contents, OpenMP linkage, SHA-256" }
 build = { depends-on = ["_build-wheel", "verify-wheel"], description = "Build and verify release wheel" }
 check = { depends-on = ["lint", "format-check", "build"], description = "Lint, format, build" }
