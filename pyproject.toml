@@ -72,8 +72,38 @@ ruff = ">=0.12,<1"
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"
 
+[tool.pixi.feature.demo.dependencies]
+python = "3.11.*"
+pyvista = ">=0.48,<1"
+psutil = ">=7,<8"
+
+[tool.pixi.feature.demo.pypi-dependencies]
+pyglet = ">=2,<3"
+imgui = { version = ">=2,<3", extras = ["pyglet"] }
+
+[tool.pixi.feature.demo.tasks]
+demo = { cmd = "python demo_3d.py", cwd = "demo", description = "Launch shader demo" }
+demo-contract = { cmd = "pytest -n auto --testmon tests/environments/demo_contract.py", description = "Verify demo imports" }
+
+[tool.pixi.feature.training.dependencies]
+numpy-stl = ">=3,<4"
+matplotlib-base = ">=3.10,<4"
+py7zr = ">=1,<2"
+pyvista = ">=0.48,<1"
+trimesh = ">=4,<5"
+pyfqmr = ">=0.5,<1"
+noise = ">=1.2,<2"
+
+[tool.pixi.feature.training.pypi-dependencies]
+thingi10k = "*"
+
+[tool.pixi.feature.training.tasks]
+training-contract = { cmd = "pytest -n auto --testmon tests/environments/training_contract.py", description = "Verify training imports" }
+
 [tool.pixi.environments]
 default = { features = ["py312"], solve-group = "py312" }
+demo = { features = ["demo"], solve-group = "demo" }
+training = { features = ["py312", "training"], solve-group = "py312" }
 
 [tool.pixi.tasks]
 test = { cmd = "pytest -n auto --testmon", description = "Affected contract tests in parallel" }

@@ -1,23 +1,21 @@
-import os
+import ctypes
 import gc
-import sys
-import psutil
-import argparse
-import time
 import glob
+import os
+import time
 from enum import Enum
 
-import pyglet
-from pyglet.graphics.shader import Shader, ShaderProgram
-from pyglet.gl import *
-import ctypes
-
 import imgui
+import psutil
+import pyglet
+import pyvista as pv
 from imgui.integrations.pyglet import create_renderer
-
-from pointsastori.shape_3d import *
-from pointsastori.network import *
+from pyglet.gl import *
+from pyglet.graphics.shader import Shader, ShaderProgram
 from shaders_3d import *
+
+from pointsastori.network import *
+from pointsastori.shape_3d import *
 
 K_NEIGHBORS_ACCELERATION = 32
 SCREEN_WIDTH, SCREEN_HEIGHT = 3024 // 4, 1964 // 4
@@ -133,38 +131,57 @@ def mesh_isocontour(
 	# Use PyVista for contouring
 	print(f'Running {method}...')
 
-	try:
-		import pyvista as pv
+	# Create structured grid (ImageData)
+	grid = pv.ImageData()
+	grid.dimensions = [grid_resolution, grid_resolution, grid_resolution]
+	grid.origin = grid_min
+	grid.spacing = [
+		(grid_max[0] - grid_min[0]) / (grid_resolution - 1),
+		(grid_max[1] - grid_min[1]) / (grid_resolution - 1),
+		(grid_max[2] - grid_min[2]) / (grid_resolution - 1),
+	]
 
-		# Create structured grid (ImageData)
-		grid = pv.ImageData()
-		grid.dimensions = [grid_resolution, grid_resolution, grid_resolution]
-		grid.origin = grid_min
-		grid.spacing = [
-			(grid_max[0] - grid_min[0]) / (grid_resolution - 1),
-			(grid_max[1] - grid_min[1]) / (grid_resolution - 1),
-			(grid_max[2] - grid_min[2]) / (grid_resolution - 1),
-		]
+	grid.point_data['values'] = distance_grid.ravel(order='F')
 
-		grid.point_data['values'] = distance_grid.ravel(order='F')
+	# Extract isosurface using selected method
+	if method.lower() == 'flying_edges':
+		mesh = grid.contour(isosurfaces=[isovalue], scalars='values', method='flying_edges')
+	elif method.lower() == 'marching_cubes':
+		mesh = grid.contour(isosurfaces=[isovalue], scalars='values', method='marching_cubes')
+	else:
+		raise ValueError(f"Unknown method '{method}'. Use 'flying_edges' or 'marching_cubes'")
 
-		# Extract isosurface using selected method
-		if method.lower() == 'flying_edges':
-			mesh = grid.contour(isosurfaces=[isovalue], scalars='values', method='flying_edges')
-		elif method.lower() == 'marching_cubes':
-			mesh = grid.contour(isosurfaces=[isovalue], scalars='values', method='marching_cubes')
-		else:
-			raise ValueError(f"Unknown method '{method}'. Use 'flying_edges' or 'marching_cubes'")
+	# Extract vertices and faces
+	vertices = np.array(mesh.points)
 
-		# Extract vertices and faces
-		vertices = np.array(mesh.points)
+	# PyVista faces are stored as [n, v0, v1, v2, n, v3, v4, v5, ...]
+	# where n is the number of vertices in each face
+	faces_raw = mesh.faces
 
-		# PyVista faces are stored as [n, v0, v1, v2, n, v3, v4, v5, ...]
-		# where n is the number of vertices in each face
-		faces_raw = mesh.faces
+	# Reshape to get individual faces
+	n_faces = mesh.n_faces_strict
+	faces = []
+	idx = 0
+	for _ in range(n_faces):
+		n_verts = faces_raw[idx]
+		face = faces_raw[idx + 1 : idx + 1 + n_verts]
+		faces.append(face)
+		idx += 1 + n_verts
 
-		# Reshape to get individual faces
-		n_faces = mesh.n_faces_strict
+	faces = np.array(faces)
+
+	faces[:, [1, 2]] = faces[:, [2, 1]]  # because PyVista is annoying
+
+	print(f'Extracted mesh: {len(vertices)} vertices, {len(faces)} faces')
+
+	# Optional: Clean the mesh (remove duplicate vertices, etc.)
+	mesh_cleaned = mesh.clean()
+	if mesh_cleaned.n_points < mesh.n_points:
+		print(f'Cleaned mesh: {mesh.n_points} -> {mesh_cleaned.n_points} vertices')
+		vertices = np.array(mesh_cleaned.points)
+
+		faces_raw = mesh_cleaned.faces
+		n_faces = mesh_cleaned.n_faces_strict
 		faces = []
 		idx = 0
 		for _ in range(n_faces):
@@ -172,32 +189,7 @@ def mesh_isocontour(
 			face = faces_raw[idx + 1 : idx + 1 + n_verts]
 			faces.append(face)
 			idx += 1 + n_verts
-
 		faces = np.array(faces)
-
-		faces[:, [1, 2]] = faces[:, [2, 1]]  # because PyVista is annoying
-
-		print(f'Extracted mesh: {len(vertices)} vertices, {len(faces)} faces')
-
-		# Optional: Clean the mesh (remove duplicate vertices, etc.)
-		mesh_cleaned = mesh.clean()
-		if mesh_cleaned.n_points < mesh.n_points:
-			print(f'Cleaned mesh: {mesh.n_points} -> {mesh_cleaned.n_points} vertices')
-			vertices = np.array(mesh_cleaned.points)
-
-			faces_raw = mesh_cleaned.faces
-			n_faces = mesh_cleaned.n_faces_strict
-			faces = []
-			idx = 0
-			for _ in range(n_faces):
-				n_verts = faces_raw[idx]
-				face = faces_raw[idx + 1 : idx + 1 + n_verts]
-				faces.append(face)
-				idx += 1 + n_verts
-			faces = np.array(faces)
-
-	except ImportError:
-		raise ImportError('PyVista is not available. Please install it: pip install pyvista')
 
 	return vertices, faces
 
@@ -255,7 +247,7 @@ class RenderPass:
 
 		# Check completeness
 		if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
-			print(f'Framebuffer not complete for pass')
+			print('Framebuffer not complete for pass')
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
@@ -402,7 +394,7 @@ class ShaderWindow(pyglet.window.Window):
 		self.quantity = SHADER_QUANTITIES[ShaderQuantity.PAT.value]
 		self.quantity_idx = SHADER_QUANTITIES.index(self.quantity)
 		self.shape_filepath = self.available_shapes[self.current_shape_index]
-		log_memory(f'\nBefore load_shape()')
+		log_memory('\nBefore load_shape()')
 		self.load_shape()
 
 		t0 = time.time()
@@ -476,13 +468,13 @@ class ShaderWindow(pyglet.window.Window):
 				self.pointcloud_size = self.pointcloud.size
 				t1 = time.time()
 				print('Point cloud generation: %f s' % (t1 - t0))
-				log_memory(f'\nAfter PointCloud3D()')
+				log_memory('\nAfter PointCloud3D()')
 
 				t0 = time.time()
 				self.create_triangle_mesh_texture()
 				t1 = time.time()
 				print('Triangle mesh texture creation (precompute): %f s' % (t1 - t0))
-				log_memory(f'\nAfter create_triangle_mesh_texture()')
+				log_memory('\nAfter create_triangle_mesh_texture()')
 			else:
 				t0 = time.time()
 				self.pointcloud = PointCloud3D.read(self.shape_filepath)
@@ -496,14 +488,14 @@ class ShaderWindow(pyglet.window.Window):
 				if self.pointcloud.colors is not None and len(self.pointcloud.colors) > 0:
 					point_colors = self.pointcloud.colors
 
-		print('Size of point cloud: %d' % (self.pointcloud_size))
+		print(f'Size of point cloud: {self.pointcloud_size:d}')
 
 		# Initialize point colors
 		zeros = np.zeros(point_colors.shape[0])
 		data = np.c_[point_colors, zeros]
 		self.pointcolors_texture = GLuint()
 		self.create_texture(self.pointcolors_texture, data)
-		log_memory(f'\nAfter point colors()')
+		log_memory('\nAfter point colors()')
 
 		self.TDF = TorusDistanceField(self.pointcloud.points, self.pointcloud.normals)
 
@@ -511,13 +503,13 @@ class ShaderWindow(pyglet.window.Window):
 		self.create_learned_tori_texture()
 		t1 = time.time()
 		print('Neural net evaluation of fitted tori (precompute): %f s' % (t1 - t0))
-		log_memory(f'\nAfter create_learned_tori_texture()')
+		log_memory('\nAfter create_learned_tori_texture()')
 
 		t0 = time.time()
 		self.create_pointcloud_texture()
 		t1 = time.time()
 		print('Point cloud texture creation (precompute): %f s' % (t1 - t0))
-		log_memory(f'\nAfter create_pointcloud_texture()')
+		log_memory('\nAfter create_pointcloud_texture()')
 
 		self.create_cubemap_texture()
 
@@ -571,7 +563,7 @@ class ShaderWindow(pyglet.window.Window):
 		"""
 		Change which trained neural network is used to infer fitted circles.
 		"""
-		print('Model name: %s' % MODEL_NAMES[self.model_idx])
+		print(f'Model name: {MODEL_NAMES[self.model_idx]}')
 		t0 = time.time()
 		self.create_learned_tori_texture()
 		t1 = time.time()
@@ -699,7 +691,7 @@ class ShaderWindow(pyglet.window.Window):
 		self.bind_textures()
 
 		# Get common uniforms and add cutplane-specific ones
-		screen_width, screen_height = self.get_size()
+		screen_width, _screen_height = self.get_size()
 		uniforms = {
 			'u_resolution': (float(n_width), float(n_height)),  # pixel dimensions of buffer
 			'cutplane_resolution': (float(n_width), float(n_height)),
@@ -856,7 +848,7 @@ class ShaderWindow(pyglet.window.Window):
 		print(f'Loading {model_name_full}...')
 
 		model, k_neighbors = FundamentalFormPredictor.load_saved_model(model_name_full)
-		log_memory(f'\nAfter load_saved_model()')
+		log_memory('\nAfter load_saved_model()')
 
 		t00 = time.time()
 		t0 = time.time()
@@ -871,7 +863,7 @@ class ShaderWindow(pyglet.window.Window):
 
 		jax.clear_caches()
 
-		log_memory(f'\nAfter precompute_coefficients()')
+		log_memory('\nAfter precompute_coefficients()')
 
 		t0 = time.time()
 		centers, axes, major_radii, minor_radii = fit_tori_from_forms(
@@ -1354,11 +1346,10 @@ class ShaderWindow(pyglet.window.Window):
 		io = imgui.get_io()
 		self.renderer.on_mouse_press(x, y, button, modifiers)
 		# Only handle camera controls if ImGui didn't consume the event
-		if not io.want_capture_mouse:
-			if button == pyglet.window.mouse.LEFT:
-				self.mouse_dragging = True
-				self.last_mouse_x = x
-				self.last_mouse_y = y
+		if not io.want_capture_mouse and button == pyglet.window.mouse.LEFT:
+			self.mouse_dragging = True
+			self.last_mouse_x = x
+			self.last_mouse_y = y
 
 	def on_mouse_release(self, x, y, button, modifiers):
 		# Let ImGui handle the event first
