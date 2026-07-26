@@ -49,7 +49,7 @@ To give an idea of precomputation time: Using an NVIDIA RTX 3090, precomputation
 
 First follow the set up instructions in the [above section](#usage-for-signed-distance).
 
-For now, I've included a shader visualization that uses `pyglet` and `pyimgui`. These dependences admittedly can be a pain to set up, and developing an easier-to-use browser-based shader is a TODO.
+For now, I've included a shader visualization that uses `pyglet` and `pyimgui`. These dependences admittedly can be a pain to set up, and developing an easier-to-use browser-based shader is a TODO. _Contributions welcome!_
 
 The demo uses additional dependencies that require a version of Python between 3.9 - 3.11. You can change Python versions easily by setting up a virtual environment. For example, you can create a new existing Python virtual environment using `venv` (using Python version 3.11 here as an example) with
 ```
@@ -123,7 +123,7 @@ Areas of improvement mostly center around neural network performance and robustn
 
 2. *Robustness to corruption:* The network's current predictions might not be robust for point clouds whose sampling characteristics are significantly different from those seen in training, such as point clouds with significantly different sampling density, or significant amounts of noise, outliers, or missing data. It may be worthwhile to train on more diverse data --- I only trained on clean point clouds with 2048 points each. To improve accuracy, it may also be useful to include some form of neighborhood size estimation or adopt a hierarchical approach, or simply preprocess input point clouds (e.g. subsample to match a target density, noise/outlier removal).
 
-## Repository TODOs
+## Repository TODOs (contributions welcome!)
 
 * Implement the Laplacian of the SDF of a torus in the C++ function `TorusDistanceField::evaluate_distance_gradient_laplacian_single()`
 * Implement browser-based shader using WebGL or WebGPU
