@@ -77,7 +77,7 @@ To create a virtual environment using pyenv, use `pyenv virtualenv 3.11 [venv na
 The demo requires additional dependencies that can be pip-installed as follows:
 
 ```
-pip install pyglet "imgui[pyglet] pyvista"
+pip install pyglet imgui[pyglet] pyvista open3d
 ```
 
 Run the demo from the `/demo` directory using 
