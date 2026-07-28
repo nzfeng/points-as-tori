@@ -1387,5 +1387,8 @@ class BoundingVolumeHierarchy:
 	def get_num_nodes(self) -> int:
 		return self.bound_object.get_num_nodes()
 
+	def get_max_depth(self) -> int:
+		return self.bound_object.get_max_depth()
+
 	def get_num_primitives(self) -> int:
 		return self.bound_object.get_num_primitives()

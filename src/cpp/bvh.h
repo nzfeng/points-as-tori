@@ -95,19 +95,23 @@ class BVH {
     const Eigen::Matrix<double, 3, Eigen::Dynamic>& get_primitives() const {
         return primitives;
     }
+    int BVH::get_max_depth() const {
+        return max_depth;
+    }
 
   private:
     BVHPrimitiveType primitive_type;
     Eigen::Matrix<double, 3, Eigen::Dynamic> primitives; // (3, n_points) or (3, 3*n_tris)
     Eigen::Matrix<double, 3, Eigen::Dynamic> centroids;  // (3, n_primitives) centroid of each primitive
     int n_primitives;
+    int max_depth = 0;
 
     std::vector<BVHNode> nodes;
     Eigen::VectorXi primitive_indices;
 
     // ===== Construction
 
-    int build_recursive(int start, int end);
+    int build_recursive(int start, int end, int depth);
 
     // ===== Helpers
 

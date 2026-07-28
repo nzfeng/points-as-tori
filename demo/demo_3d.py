@@ -276,6 +276,7 @@ class RenderPass:
 		glReadPixels(0, 0, self.width, self.height, GL_RGBA, GL_FLOAT, data.ctypes.data)
 		return data
 
+	error_already_shown = {}
 	def render(self, uniforms=None):
 		glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffer)
 		glViewport(0, 0, self.width, self.height)
@@ -285,7 +286,14 @@ class RenderPass:
 		# Set shader uniforms if provided
 		if uniforms:
 			for name, value in uniforms.items():
-				self.shader_program[name] = value
+				try:
+					self.shader_program[name] = value
+				except pyglet.graphics.shader.ShaderException as e:
+					# If a uniform is optimized out by the compiler then we will get an error
+					s = repr(e)
+					if not (s in self.error_already_shown):
+						self.error_already_shown[s] = True
+						print(f"Uniform error: {e}")
 
 		self.vertex_list.draw(GL_TRIANGLE_STRIP)  # Warning: Very slow on the first frame
 
@@ -405,10 +413,21 @@ class ShaderWindow(pyglet.window.Window):
 		log_memory(f'\nBefore load_shape()')
 		self.load_shape()
 
+		self.bvh_stack_size = 64
+
 		t0 = time.time()
-		self.compile_shader()
+		try:
+			self.compile_shader()
+		except pyglet.graphics.shader.ShaderException as e:
+			self.bvh_stack_size -= 16 # Use a bit less memory to fit on a smaller laptop GPU
+			print(f"Trying shader stack size {self.bvh_stack_size}")
+			self.compile_shader()
 		t1 = time.time()
 		print('Compile shader: %f s' % (t1 - t0))
+
+		max_bvh_used = max(self.pc_bvh.get_max_depth(), self.mesh_bvh.get_max_depth())
+		if self.bvh_stack_size <= max_bvh_used:
+			print(f"Caution! largest BVH is {self.pc_bvh.get_max_depth()} and the stack allocated is {self.bvh_stack_size}")
 
 		# Create imgui menu
 		imgui.create_context()
@@ -777,7 +796,7 @@ class ShaderWindow(pyglet.window.Window):
 		self.isomesh_bvh = BoundingVolumeHierarchy(shape.vertices, shape.faces)
 		node_data, prim_indices = self.isomesh_bvh.get_gpu_data()
 		t1 = time.time()
-		print(f'  Isomesh BVH: {self.isomesh_bvh.get_num_nodes()} nodes in {t1 - t0:.3f}s')
+		print(f'  Isomesh BVH: {self.isomesh_bvh.get_num_nodes()} nodes with max depth:{self.isomesh_bvh.get_max_depth()} in {t1 - t0:.3f}s' )
 
 		bvh_nodes = self.pack_bvh_nodes_flat(node_data)
 		bvh_indices = self.pack_bvh_indices_flat(prim_indices)
@@ -808,7 +827,7 @@ class ShaderWindow(pyglet.window.Window):
 		self.mesh_bvh = BoundingVolumeHierarchy(self.shape.vertices, self.shape.faces)
 		node_data, prim_indices = self.mesh_bvh.get_gpu_data()
 		t1 = time.time()
-		print(f'  Mesh BVH: {self.mesh_bvh.get_num_nodes()} nodes in {t1 - t0:.3f}s')
+		print(f'  Mesh BVH: {self.mesh_bvh.get_num_nodes()} nodes with max depth:{self.mesh_bvh.get_max_depth()} in {t1 - t0:.3f}s' )
 
 		bvh_nodes = self.pack_bvh_nodes_flat(node_data)
 		bvh_indices = self.pack_bvh_indices_flat(prim_indices)
@@ -839,7 +858,7 @@ class ShaderWindow(pyglet.window.Window):
 		self.pc_bvh = BoundingVolumeHierarchy(self.pointcloud.points)
 		node_data, prim_indices = self.pc_bvh.get_gpu_data()
 		t1 = time.time()
-		print(f'  Point cloud BVH: {self.pc_bvh.get_num_nodes()} nodes in {t1 - t0:.3f}s')
+		print(f'  Point cloud BVH: {self.pc_bvh.get_num_nodes()} nodes with max depth:{self.pc_bvh.get_max_depth()} in {t1 - t0:.3f}s')
 
 		bvh_nodes = self.pack_bvh_nodes_flat(node_data)
 		bvh_indices = self.pack_bvh_indices_flat(prim_indices)
@@ -932,20 +951,24 @@ class ShaderWindow(pyglet.window.Window):
 
 		This function re-compiles all the buffers in a possibly multi-pass shader.
 		"""
+		print("Compile shaders...")
+		t0 = time.time()
 		for i in range(len(self.render_passes)):
 			self.render_passes[i].cleanup()
 		self.render_passes.clear()
 
 		# Fill in common functionalities with interactive parameters.
-		fragment_common = COMMON_TEMPLATE.format(COMMON_SHADER=COMMON_SHADER)
+		fragment_common = COMMON_TEMPLATE.format(COMMON_SHADER=COMMON_SHADER, quantity = self.quantity_idx, stack_size = self.bvh_stack_size)
 
 		# The pass that computes quantities that depend on external/interactive parameters like mouse interaction
 		fragment_interactive = INTERACTION_SHADER_TEMPLATE.format(COMMON_DYNAMIC=fragment_common)
 		interactive_pass = RenderPass(VERTEX_SHADER, fragment_interactive, output_size=(1, 1), num_outputs=3)
 		self.render_passes.append(interactive_pass)
 
+		def gl_bool(b):
+			return repr(b).lower()
 		# Construct the main shader.
-		fragment_main = MAIN_FRAGMENT_SHADER_TEMPLATE.format(COMMON_DYNAMIC=fragment_common)
+		fragment_main = MAIN_FRAGMENT_SHADER_TEMPLATE.format(COMMON_DYNAMIC=fragment_common, vis_contour = gl_bool(self.vis_contour), vis_shape = gl_bool(self.vis_shape), vis_tori = gl_bool(self.vis_tori))
 		width, height = self.get_size()
 		main_pass = RenderPass(VERTEX_SHADER, fragment_main, output_size=(width, height))
 		self.render_passes.append(main_pass)
@@ -953,6 +976,8 @@ class ShaderWindow(pyglet.window.Window):
 		# Cut plane export pass (compiled but not rendered every frame)
 		fragment_cutplane = CUTPLANE_EXPORT_SHADER.format(COMMON_DYNAMIC=fragment_common)
 		self.cutplane_export_pass = RenderPass(VERTEX_SHADER, fragment_cutplane, output_size=(1, 1), num_outputs=3)
+		t1 = time.time()
+		print(f"Compiled shaders in {t1-t0:.3f}s")
 
 	def save_screenshot(self) -> None:
 		# Find next available screenshot number
@@ -1058,7 +1083,7 @@ class ShaderWindow(pyglet.window.Window):
 			imgui.tree_pop()
 
 		imgui.separator()
-
+		recompile_shader = False # Recompile the shaders if a "constant" changes
 		if imgui.tree_node('Quantity to visualize', imgui.TREE_NODE_DEFAULT_OPEN):
 			# Quick-select which quantity to visualize
 			quick_picks = [
@@ -1075,11 +1100,13 @@ class ShaderWindow(pyglet.window.Window):
 				if imgui.radio_button(quantity, self.quantity == quantity):
 					self.quantity = quantity
 					self.quantity_idx = SHADER_QUANTITIES.index(self.quantity)
+					recompile_shader = True
 
 			# Full, extended list of quantities to display
 			changed, self.quantity_idx = imgui.combo('##quantity_combo', self.quantity_idx, SHADER_QUANTITIES)
 			if changed:
 				self.quantity = SHADER_QUANTITIES[self.quantity_idx]
+				recompile_shader = True
 
 			imgui.tree_pop()
 
@@ -1111,10 +1138,15 @@ class ShaderWindow(pyglet.window.Window):
 			if self.shape != None:
 				changed, self.vis_shape = imgui.checkbox('Display input mesh', self.vis_shape)
 			changed, self.vis_points = imgui.checkbox('Display points', self.vis_points)
+			
 			changed, self.vis_normals = imgui.checkbox('Display normals', self.vis_normals)
+			recompile_shader |= changed
+
 			if self.quantity_idx == ShaderQuantity.PAT.value:
 				changed, self.vis_tori = imgui.checkbox('Display tori', self.vis_tori)
+				recompile_shader |= changed
 			changed, self.vis_contour = imgui.checkbox('Display contour', self.vis_contour)
+			recompile_shader |= changed
 
 			changed, self.isovalue = imgui.input_float('Isovalue', self.isovalue)
 			if self.vis_points:
@@ -1153,6 +1185,9 @@ class ShaderWindow(pyglet.window.Window):
 				'Isoband freq.', self.isoband_frequency, 0.0, 360.0, '%.2f'
 			)
 			imgui.tree_pop()
+
+		if recompile_shader:
+			self.compile_shader()
 
 		imgui.separator()
 
