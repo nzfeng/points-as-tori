@@ -10,7 +10,7 @@ Paper PDF (28.4mb): [link](https://nzfeng.github.io/research/PointsAsTori/Points
 
 Project page with paper, videos, and blog-style explanations: [link](https://nzfeng.github.io/research/PointsAsTori/index.html)
 
-If you have a feature or improvement in mind, or if parts of the repository buggy or poorly explained, leave an issue on GitHub.
+**There's room for contribution** (see "[Areas of improvement](#areas-of-improvement)" and "[Repository TODOs](#repository-todos)"). If you have a feature or improvement in mind, or if parts of the repository buggy or poorly explained, leave an issue and/or PR on GitHub.
 
 ## Usage for signed distance
 
