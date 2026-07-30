@@ -10,7 +10,7 @@ Paper PDF (28.4mb): [link](https://nzfeng.github.io/research/PointsAsTori/Points
 
 Project page with paper, videos, and blog-style explanations: [link](https://nzfeng.github.io/research/PointsAsTori/index.html)
 
-**There's room for contribution** (see "[Areas of improvement](#areas-of-improvement)" and "[Repository TODOs](#repository-todos)"). If you have a feature or improvement in mind, or if parts of the repository buggy or poorly explained, leave an issue and/or PR on GitHub.
+**There's room for contribution**; see "[Areas of improvement](#areas-of-improvement)" and "[Repository TODOs](#repository-todos)". These sections are also good for getting an idea of the limitations of this method. If you have a feature or improvement in mind, or if parts of the repository buggy or poorly explained, leave an issue and/or PR on GitHub.
 
 ## Usage for signed distance
 
@@ -121,7 +121,12 @@ Areas of improvement mostly center around neural network performance and robustn
 
 <!-- If used for optimization tasks, tori can perhaps be updated using simple gradient-based updates rather than forward passes of the neural network.  -->
 
-2. *Robustness to corruption:* The network's current predictions might not be robust for point clouds whose sampling characteristics are significantly different from those seen in training, such as point clouds with significantly different sampling density, or significant amounts of noise, outliers, or missing data. It may be worthwhile to train on more diverse data --- I only trained on clean point clouds with 2048 points each. To improve accuracy, it may also be useful to include some form of neighborhood size estimation or adopt a hierarchical approach, or simply preprocess input point clouds (e.g. subsample to match a target density, noise/outlier removal).
+2. *Robustness to corruption and out-of-distribution behavior:* The network's current predictions may not generalize to point clouds whose sampling characteristics are significantly different from those seen in training, such as point clouds with significantly different sampling density, or significant amounts of noise, outliers, flipped normals, or missing data (see figure below). It may be worthwhile to train on more diverse data --- I only trained on clean point clouds with 2048 points each. To improve accuracy, it may also be useful to include some form of neighborhood size estimation or adopt a hierarchical approach, or simply preprocess input point clouds (e.g. subsample to match a target density, noise/outlier removal). Another recommendation is to specifically train the neural component on point clouds whose sampling characteristics resemble the expected distribution --- for that reason, I've provided training scripts (see ["Training"](#training)).
+
+<p align="center">
+<img src="media/Limitation.png" width=60%>
+<figcaption styles="text-align: center; width: 60%"><i>Visualization of an SDF slice resulting from increasingly dense samplings of the same shape. Even though the point clouds aren't noisy, the SDF becomes increasingly worse (especially in the interior) because the sampling density deviates so much from that seen in training. See the above paragraph for possible remedies.</i></figcaption>
+</p>
 
 ## Repository TODOs (contributions welcome!)
 
