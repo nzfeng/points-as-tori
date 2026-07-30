@@ -36,7 +36,7 @@ BVH::BVH(const Eigen::Matrix<double, 3, Eigen::Dynamic>& points) : primitive_typ
   // Build tree
   nodes.clear();
   nodes.reserve(2 * n_primitives); // worst case
-  build_recursive(0, n_primitives);
+  build_recursive(0, n_primitives, 0);
 }
 
 BVH::BVH(const Eigen::Matrix<double, 3, Eigen::Dynamic>& vertices, const Eigen::Matrix<int, 3, Eigen::Dynamic>& faces)
@@ -63,14 +63,15 @@ BVH::BVH(const Eigen::Matrix<double, 3, Eigen::Dynamic>& vertices, const Eigen::
   // Build tree
   nodes.clear();
   nodes.reserve(2 * n_primitives);
-  build_recursive(0, n_primitives);
+  build_recursive(0, n_primitives, 0);
 }
 
 // ============================================================================
 // Begin code generated mostly by Claude
 // ============================================================================
 
-int BVH::build_recursive(int start, int end) {
+int BVH::build_recursive(int start, int end, int depth) {
+  max_depth = std::max(max_depth, depth);
   int node_idx = static_cast<int>(nodes.size());
   BVHNode node;
   nodes.push_back(node);
@@ -119,8 +120,8 @@ int BVH::build_recursive(int start, int end) {
   // Build children
   nodes[node_idx].prim_start = 0;
   nodes[node_idx].prim_count = 0;
-  nodes[node_idx].left_child = build_recursive(start, mid);
-  nodes[node_idx].right_child = build_recursive(mid, end);
+  nodes[node_idx].left_child = build_recursive(start, mid, depth+1);
+  nodes[node_idx].right_child = build_recursive(mid, end, depth+1);
 
   return node_idx;
 }
@@ -870,5 +871,6 @@ void bind_bvh(nb::module_& m) {
       .def("get_gpu_data", &BVH::get_gpu_data, "Get flattened BVH data for GPU upload. Returns (node_data, indices)")
       .def("get_num_nodes", &BVH::get_num_nodes, "Get number of BVH nodes")
       .def("get_num_primitives", &BVH::get_num_primitives, "Get number of primitives")
+      .def("get_max_depth", &BVH::get_max_depth, "Get maximum tree depth")
       .def("get_primitive_type", &BVH::get_primitive_type, "Get primitive type");
 }

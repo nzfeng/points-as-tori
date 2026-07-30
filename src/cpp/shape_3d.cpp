@@ -117,8 +117,9 @@ Mesh3D::ray_intersections(const Eigen::Matrix<double, 3, Eigen::Dynamic>& ros,
     // Convert to matrices
     Eigen::Matrix<double, 3, Eigen::Dynamic> points_mat(3, points.size());
     Eigen::Matrix<double, 3, Eigen::Dynamic> normals_mat(3, normals.size());
+    const Eigen::Index n = static_cast<Eigen::Index>(points.size());
 #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < points.size(); ++i) {
+    for (Eigen::Index i = 0; i < n; ++i) {
         points_mat.col(i) = points[i];
         normals_mat.col(i) = normals[i];
     }

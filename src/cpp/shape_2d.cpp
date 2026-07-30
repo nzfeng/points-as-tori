@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <numeric>
 
 #ifdef _OPENMP
 #include <omp.h>

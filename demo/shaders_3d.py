@@ -139,7 +139,7 @@ int bvhClosestPoint(vec3 query, out float min_dist) {
     min_dist = INFINITY;
     int closest_idx = -1;
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
     
@@ -197,7 +197,7 @@ int bvhPointsInRadius(vec3 query, float radius, int max_results,
     int count = 0;
     float radius_sq = radius * radius;
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
     
@@ -246,7 +246,7 @@ int bvhKNearestNeighbors(vec3 query, int k, int max_results,
     int count = 0;
     float kth_dist_sq = 1e10;  // Distance to k-th nearest (infinity initially)
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;  // Start at root
     
@@ -398,7 +398,7 @@ int bvhKNearestTriangles(sampler2D mesh, sampler2D bvh_nodes, sampler2D bvh_indi
         result_indices[i] = -1;
     }
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
     
@@ -514,7 +514,7 @@ bool bvhIntersectPointCloud( in vec3 ro, in vec3 rd, in float t_min, in float t_
     hit_point_idx = -1;
     bool found_hit = false;
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;  // Start at root
     
@@ -611,7 +611,7 @@ bool bvhIntersectMesh(in sampler2D mesh, in sampler2D bvh_nodes, in sampler2D bv
     hit_tri_idx = -1;
     bool found_hit = false;
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;  // Start at root
     
@@ -1199,7 +1199,7 @@ void bvhGatherStats(vec3 query, float radius, out RadiusStats stats) {
     
     float radius_sq = radius * radius;
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
     
@@ -1321,7 +1321,7 @@ void bvhAccumulateInRadius(vec3 query, float radius, sampler2D torusTexture,
     
     float radius_sq = radius * radius;
     
-    int stack[64];
+    int stack[stack_size];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
     
@@ -1656,6 +1656,7 @@ int intersecttori(in sampler2D texture, in vec3 ro, in vec3 rd, in float tmin, i
 
 # Shading and scene intersection stuff
 COMMON_TEMPLATE = """
+    const int stack_size = {stack_size};  // The maximum BVH depth allowed
     {COMMON_SHADER}
 
     in vec2 iResolution;
@@ -1667,7 +1668,8 @@ COMMON_TEMPLATE = """
     uniform vec2 mouseCoord, cameraShift;
     uniform vec3 cutplaneDiag, cutplaneNormal, cameraPosition;
     uniform float zoom, lambdaScale, pointRadius, cutplaneDepth, isovalue, cutplaneRotationX, cutplaneRotationY;
-    uniform int quantity, cutplaneAxis;
+    const int quantity = {quantity};
+    uniform int cutplaneAxis;
     uniform bool freezeCutplane;
 
     /*
@@ -2272,21 +2274,6 @@ INTERACTION_SHADER_TEMPLATE = """
         bool hitPlane = intersectCutPlane(ro, rd, epsilon, t);
         vec3 pos = ro + t*rd;
 
-        // Dummy code so uniforms aren't optimized out
-        output0 = vec4(0.);
-        if (n_points < 0) {{
-            output0 += fetch_texel(int(cutplaneDepth), pointcloud);
-            output0 += fetch_texel(int(isovalue), pointcloud);
-            output0 += fetch_texel(n_pc_bvh_nodes, pc_bvh_nodes);
-            output0 += fetch_texel(int(cutplaneNormal[0]), pc_bvh_prim_indices);
-            output0 += fetch_texel(n_mesh_bvh_nodes, mesh_bvh_nodes);
-            output0 += fetch_texel(0, mesh_bvh_prim_indices);
-            output0 += fetch_texel(0, pointcolors);
-            output0 += fetch_texel(n_isomesh_bvh_nodes, isocontour);
-            output0 += fetch_texel(n_isomesh_bvh_nodes, isomesh_bvh_nodes);
-            output0 += fetch_texel(n_isomesh_bvh_nodes, isomesh_bvh_prim_indices);
-            output0.x += minDist; output0.x += maxDist;
-        }}
 
         if (hitPlane) {{
             float mouse_sdf_approx = activePhi(pos);
@@ -2373,7 +2360,8 @@ MAIN_FRAGMENT_SHADER_TEMPLATE = """
     out vec4 fragColor;
     uniform vec3 lightPosition, specularLightPosition;
     uniform float floorHeight;
-    uniform bool vis_cutplane, vis_shape, vis_points, vis_tori, vis_contour, vis_normals;
+    uniform bool vis_cutplane, vis_points, vis_normals;
+    const bool vis_shape = {vis_shape}, vis_tori = {vis_tori}, vis_contour = {vis_contour};
     uniform bool vis_colors;
 
     /* Compute the color to be displayed at the given point on the cut plane. */
@@ -2548,20 +2536,6 @@ MAIN_FRAGMENT_SHADER_TEMPLATE = """
 
     void main () {{
 
-        // Dummy code so uniforms aren't optimized out
-        fragColor = vec4(0.);
-        if (n_points < 0) {{
-            int x = n_points;
-            fragColor += fetch_texel(int(vis_normals), shape);
-            fragColor += fetch_texel(int(cutplaneDepth), learnedtori);
-            fragColor += fetch_texel(int(cutplaneNormal[0]), pointcloud);
-            fragColor += texture(cubemap, vec3(mouseCoord, 0.));
-            fragColor += fetch_texel(n_mesh_bvh_nodes, mesh_bvh_nodes);
-            fragColor += fetch_texel(0, mesh_bvh_prim_indices);
-            fragColor += fetch_texel(0, isocontour);
-            fragColor += fetch_texel(int(isovalue), isomesh_bvh_nodes);
-            fragColor += fetch_texel(n_isomesh_bvh_nodes, isomesh_bvh_prim_indices);
-        }}
 
         vec3 ro, rd;
         float alpha;
